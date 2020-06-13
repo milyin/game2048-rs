@@ -1,0 +1,8 @@
+[package]
+name = "model"
+version = "0.1.0"
+authors = ["Michael Ilyin <milyin@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+ndarray = "0.13"
