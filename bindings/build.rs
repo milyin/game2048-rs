@@ -19,7 +19,9 @@ winrt::build!(
             SpriteVisual,
         }
         windows::ui::composition::desktop::DesktopWindowTarget
+        windows::ui::Color
         windows::ui::Colors
+        windows::ui::ColorHelper
 );
 
 fn main() {

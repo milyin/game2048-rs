@@ -217,6 +217,7 @@ version = "0.1.0"
 dependencies = [
  "bindings",
  "model",
+ "ndarray",
  "rand",
  "raw-window-handle",
  "winit",
@@ -407,6 +408,7 @@ name = "model"
 version = "0.1.0"
 dependencies = [
  "ndarray",
+ "rand",
 ]
 
 [[package]]
