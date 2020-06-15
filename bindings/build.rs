@@ -22,6 +22,7 @@ winrt::build!(
         windows::ui::Color
         windows::ui::Colors
         windows::ui::ColorHelper
+//        windows::ui::Xaml::Controls::*
 );
 
 fn main() {
