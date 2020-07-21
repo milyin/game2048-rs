@@ -154,8 +154,6 @@ impl Field {
             }
         }
 
-        dbg!(&self);
-
         for x in 0..width {
             let mut repeat_start_from = Some(0);
             while repeat_start_from.is_some() {
