@@ -1,6 +1,7 @@
 winrt::build!(
     dependencies
         os
+        nuget: Win2D.uwp
     types
         windows::foundation::numerics::{Vector2, Vector3}
         windows::foundation::TimeSpan
@@ -22,7 +23,9 @@ winrt::build!(
         windows::ui::Color
         windows::ui::Colors
         windows::ui::ColorHelper
-//        windows::ui::Xaml::Controls::*
+        microsoft::graphics::canvas::{CanvasDevice}
+        microsoft::graphics::canvas::text::*
+        microsoft::graphics::canvas::ui::composition::*
 );
 
 fn main() {

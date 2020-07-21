@@ -195,19 +195,7 @@ impl Field {
             }
         }
     }
-    pub fn random_fill(&mut self) {
-        let width = self.width_from_side(Down);
-        let height = self.height_from_side(Down);
-        let mut rng = rand::thread_rng();
-        for x in 0..width {
-            for y in 0..height {
-                let level = rng.gen_range(0, 1);
-                self.put_from_side(Down, x, y, Some(Tile(level, Moved(x, y))));
-            }
-        }
-    }
-
-    pub fn free_cells(&self) -> Vec<(usize, usize)> {
+    pub fn get_free_cells(&self) -> Vec<(usize, usize)> {
         let mut result = Vec::new();
         let width = self.width_from_side(Down);
         let height = self.height_from_side(Down);
@@ -223,12 +211,13 @@ impl Field {
 
     pub fn append_tile(&mut self) -> bool {
         let mut rng = rand::thread_rng();
-        let poses = self.free_cells();
+        let poses = self.get_free_cells();
         if poses.is_empty() {
             return false;
         }
         let (x, y) = poses[rng.gen_range(0, poses.len())];
-        self.put_from_side(Down, x, y, Some(Tile(2, Appear)));
+        let v = rng.gen_range(1, 3);
+        self.put_from_side(Down, x, y, Some(Tile(v, Appear)));
         return true;
     }
 }

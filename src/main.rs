@@ -1,27 +1,34 @@
 mod interop;
 mod numerics;
 mod window_target;
-use ndarray::Array2;
 
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 use winit::{
-    event::{ElementState, Event, MouseButton, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
+use bindings::microsoft::graphics::canvas::text::CanvasHorizontalAlignment;
+use bindings::microsoft::graphics::canvas::text::CanvasTextFormat;
+use bindings::microsoft::graphics::canvas::text::CanvasTextLayout;
+use bindings::microsoft::graphics::canvas::text::CanvasVerticalAlignment;
+use bindings::microsoft::graphics::canvas::ui::composition::CanvasComposition;
+use bindings::microsoft::graphics::canvas::CanvasDevice;
 use bindings::windows::foundation::numerics::Vector2;
 use bindings::windows::foundation::numerics::Vector3;
+use bindings::windows::foundation::{Rect, Size};
+use bindings::windows::graphics::directx::DirectXAlphaMode;
+use bindings::windows::graphics::directx::DirectXPixelFormat;
 use bindings::windows::ui::composition::CompositionBorderMode;
+use bindings::windows::ui::composition::CompositionGraphicsDevice;
 use bindings::windows::ui::composition::CompositionShape;
 use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
-use bindings::windows::ui::composition::ShapeVisual;
 use bindings::windows::ui::composition::Visual;
 use bindings::windows::ui::Color;
 use bindings::windows::ui::ColorHelper;
 use bindings::windows::ui::Colors;
-//use bindings::windows::ui::xaml::controls:
 
 use crate::window_target::CompositionDesktopWindowTargetSource;
 
@@ -32,16 +39,20 @@ use model::field::Side::Right;
 use model::field::Side::Up;
 use std::collections::HashMap;
 
-const tile_size: Vector2 = Vector2 { x: 100., y: 100. };
-const game_board_margin: Vector2 = Vector2 { x: 100.0, y: 100.0 };
+const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
+const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
 pub struct Game {
     root: Visual,
     compositor: Compositor,
+    canvas_device: CanvasDevice,
+    composition_graphics_device: CompositionGraphicsDevice,
     field: Field,
+    game_score: ContainerVisual,
     game_board: ContainerVisual,
-    game_board_tiles: HashMap<(usize, usize), ShapeVisual>,
+    game_board_tiles: HashMap<(usize, usize), Visual>,
     tile_shapes: HashMap<u32, CompositionShape>,
+    tile_text_layouts: HashMap<u32, CanvasTextLayout>,
 }
 
 impl Game {
@@ -63,24 +74,38 @@ impl Game {
         game_board.set_anchor_point(Vector2 { x: 0.5, y: 0.5 })?;
         root.children()?.insert_at_top(&game_board)?;
 
+        let game_score = compositor.create_container_visual()?;
+        game_score.set_anchor_point(Vector2 { x: 0., y: 0. })?;
+        root.children()?.insert_at_top(&game_score)?;
+
         //#[rustfmt::skip]
         //let array =
         //    Array2::from_shape_vec((4, 3), vec![2, 4, 4, 2, 2, 4, 0, 2, 2, 0, 0, 2]).unwrap();
         //let mut field = Field::from_array(array);
 
-        let mut field = Field::new(16, 16);
-        field.random_fill();
+        let mut field = Field::new(4, 4);
+        field.append_tile();
+        field.append_tile();
+
+        let canvas_device = CanvasDevice::get_shared_device()?;
+        let composition_graphics_device =
+            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
 
         let mut result = Self {
             root: root.into(),
             compositor,
+            canvas_device,
+            composition_graphics_device,
             field,
+            game_score,
             game_board,
             game_board_tiles: HashMap::new(),
             tile_shapes: HashMap::new(),
+            tile_text_layouts: HashMap::new(),
         };
 
-        result.init_game_board();
+        result.init_game_board()?;
+        //        result.draw_score()?;
 
         Ok(result)
     }
@@ -88,29 +113,62 @@ impl Game {
     fn on_left_pressed(&mut self) {
         self.field.swipe(Left);
         self.field.append_tile();
-        self.init_game_board();
-        dbg!(&self.field);
+        self.init_game_board().unwrap(); // TODO: later reinit will be replaced by animation
     }
 
     fn on_right_pressed(&mut self) {
         self.field.swipe(Right);
         self.field.append_tile();
-        self.init_game_board();
-        dbg!(&self.field);
+        self.init_game_board().unwrap();
     }
 
     fn on_up_pressed(&mut self) {
         self.field.swipe(Up);
         self.field.append_tile();
-        self.init_game_board();
-        dbg!(&self.field);
+        self.init_game_board().unwrap();
     }
 
     fn on_down_pressed(&mut self) {
         self.field.swipe(Down);
         self.field.append_tile();
-        self.init_game_board();
-        dbg!(&self.field);
+        self.init_game_board().unwrap();
+    }
+
+    pub fn draw_score(&mut self) -> winrt::Result<()> {
+        let device = CanvasDevice::get_shared_device()?;
+        let composition_graphics_device =
+            CanvasComposition::create_composition_graphics_device(&self.compositor, device)?;
+        let surface = composition_graphics_device.create_drawing_surface(
+            Size {
+                width: 256.,
+                height: 256.,
+            },
+            DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            DirectXAlphaMode::Premultiplied,
+        )?;
+        let ds = CanvasComposition::create_drawing_session(&surface)?;
+        ds.clear(Colors::transparent()?)?;
+        ds.draw_rounded_rectangle_with_color(
+            Rect {
+                x: 10.,
+                y: 10.,
+                width: 100.,
+                height: 100.,
+            },
+            10.,
+            10.,
+            Colors::red()?,
+        )?;
+        let brush = self.compositor.create_surface_brush()?;
+        brush.set_surface(surface)?;
+        let visual = self.compositor.create_sprite_visual()?;
+        visual.set_brush(brush)?;
+        visual.set_size(Vector2 { x: 200., y: 200. })?;
+
+        self.game_score.children()?.remove_all()?;
+        self.game_score.children()?.insert_at_top(&visual)?;
+
+        Ok(())
     }
 
     pub fn draw_game_board_border(&mut self) -> winrt::Result<()> {
@@ -126,7 +184,7 @@ impl Game {
         let brush = self
             .compositor
             .create_color_brush_with_color(Colors::blue()?)?;
-        rect.set_stroke_brush(&brush);
+        rect.set_stroke_brush(&brush)?;
         let visual = self.compositor.create_shape_visual()?;
         visual.set_size(self.game_board.size()?)?;
         visual.shapes()?.append(rect)?;
@@ -146,7 +204,7 @@ impl Game {
 
     fn scale_game_board(&mut self) -> winrt::Result<()> {
         let board_size = self.game_board.size()?;
-        let board_size = board_size + game_board_margin;
+        let board_size = board_size + GAME_BOARD_MARGIN;
 
         let window_size = self.root.size()?;
 
@@ -166,32 +224,111 @@ impl Game {
         })
     }
 
+    pub fn get_tile_shape(&mut self, n: u32) -> winrt::Result<CompositionShape> {
+        if let Some(shape) = self.tile_shapes.get(&n) {
+            Ok(shape.clone())
+        } else {
+            let container_shape = self.compositor.create_container_shape()?;
+            let round_rect_geometry = self.compositor.create_rounded_rectangle_geometry()?;
+            round_rect_geometry.set_corner_radius(Vector2 {
+                x: TILE_SIZE.x / 20.,
+                y: TILE_SIZE.y / 20.,
+            })?;
+            let round_rect_size = TILE_SIZE / 1.1;
+            round_rect_geometry.set_size(&round_rect_size)?;
+            let brush = self
+                .compositor
+                .create_color_brush_with_color(Self::get_tile_color(n)?)?;
+            let round_rect = self
+                .compositor
+                .create_sprite_shape_with_geometry(round_rect_geometry)?;
+            round_rect.set_fill_brush(brush)?;
+            round_rect.set_offset((TILE_SIZE - round_rect_size) / 2.)?;
+            container_shape.shapes()?.append(round_rect)?;
+            let shape: CompositionShape = container_shape.into();
+            self.tile_shapes.insert(n, shape.clone());
+            Ok(shape)
+        }
+    }
+    pub fn get_tile_text_layout(&mut self, n: u32) -> winrt::Result<CanvasTextLayout> {
+        if let Some(text_layout) = self.tile_text_layouts.get(&n) {
+            Ok(text_layout.clone())
+        } else {
+            let text_string: String = n.to_string();
+            let text_format = CanvasTextFormat::new()?;
+            text_format.set_font_family("Arial")?;
+            text_format.set_font_size(256.)?;
+
+            let text_layout = CanvasTextLayout::create(
+                &self.canvas_device,
+                text_string,
+                text_format,
+                TILE_SIZE.x,
+                TILE_SIZE.y,
+            )?;
+            text_layout.set_vertical_alignment(CanvasVerticalAlignment::Center)?;
+            text_layout.set_horizontal_alignment(CanvasHorizontalAlignment::Center)?;
+            self.tile_text_layouts.insert(n, text_layout.clone());
+            Ok(text_layout)
+        }
+    }
+
+    fn create_tile_visual(&mut self, n: u32) -> winrt::Result<Visual> {
+        let surface = self.composition_graphics_device.create_drawing_surface(
+            Size {
+                width: TILE_SIZE.x,
+                height: TILE_SIZE.y,
+            },
+            DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            DirectXAlphaMode::Premultiplied,
+        )?;
+        let ds = CanvasComposition::create_drawing_session(&surface)?;
+        ds.clear(Colors::transparent()?)?;
+
+        ds.draw_text_layout_at_coords_with_color(
+            self.get_tile_text_layout(n)?,
+            0.,
+            0.,
+            Colors::white()?,
+        )?;
+
+        let brush = self.compositor.create_surface_brush()?;
+        brush.set_surface(surface)?;
+        let number = self.compositor.create_sprite_visual()?;
+        number.set_brush(brush)?;
+        number.set_size(TILE_SIZE)?;
+
+        let tile_box = self.compositor.create_shape_visual()?;
+        tile_box.set_size(TILE_SIZE)?;
+        let shape = self.get_tile_shape(n)?;
+        tile_box.shapes()?.append(shape)?;
+
+        let tile_visual = self.compositor.create_container_visual()?;
+        tile_visual.set_size(TILE_SIZE)?;
+        tile_visual.children()?.insert_at_top(tile_box)?;
+        tile_visual.children()?.insert_at_top(number)?;
+
+        Ok(tile_visual.into())
+    }
+
     fn init_game_board(&mut self) -> winrt::Result<()> {
         self.game_board.set_size(Vector2 {
-            x: self.field.width() as f32 * tile_size.x,
-            y: self.field.height() as f32 * tile_size.y,
+            x: self.field.width() as f32 * TILE_SIZE.x,
+            y: self.field.height() as f32 * TILE_SIZE.y,
         })?;
-        self.game_board.children()?.remove_all();
-        //        self.draw_game_board_border()?;
+        self.game_board.children()?.remove_all()?;
+        //self.draw_game_board_border()?;
         self.game_board_tiles.clear();
         for x in 0..self.field.width() {
             for y in 0..self.field.height() {
                 if let Some(tile) = self.field.get(x, y) {
-                    let visual = self.compositor.create_shape_visual()?;
-                    visual.set_size(tile_size)?;
-                    let shape = self.get_tile_shape(tile.into())?;
-                    visual.shapes()?.append(shape)?;
+                    let visual = self.create_tile_visual(tile.into())?;
                     visual.set_offset(Vector3 {
-                        x: tile_size.x * x as f32,
-                        y: tile_size.y * y as f32,
+                        x: TILE_SIZE.x * x as f32,
+                        y: TILE_SIZE.y * y as f32,
                         z: 0.,
                     })?;
-
-                    //                    let surface_brush = self.compositor.create_surface_brush()?;
-
-                    //                  let surface = CompositionDrawingSurface::default();
-
-                    self.game_board.children()?.insert_at_top(&visual);
+                    self.game_board.children()?.insert_at_top(&visual)?;
                     self.game_board_tiles.insert((x, y), visual);
                 }
             }
@@ -204,31 +341,16 @@ impl Game {
             1 => Colors::gray(),
             2 => ColorHelper::from_argb(255, 238, 228, 218),
             4 => ColorHelper::from_argb(255, 237, 224, 200),
+            8 => ColorHelper::from_argb(255, 242, 177, 121),
+            16 => ColorHelper::from_argb(255, 242, 177, 121),
+            32 => ColorHelper::from_argb(255, 246, 124, 95),
+            64 => ColorHelper::from_argb(255, 246, 124, 95),
+            128 => ColorHelper::from_argb(255, 237, 207, 114),
+            256 => ColorHelper::from_argb(255, 237, 207, 97),
+            512 => ColorHelper::from_argb(255, 237, 200, 80),
+            1024 => ColorHelper::from_argb(255, 237, 197, 63),
+            2048 => ColorHelper::from_argb(255, 237, 194, 46),
             _ => ColorHelper::from_argb(255, 60, 58, 60),
-        }
-    }
-
-    pub fn get_tile_shape(&mut self, n: u32) -> winrt::Result<CompositionShape> {
-        if let Some(shape) = self.tile_shapes.get(&n) {
-            Ok(shape.clone())
-        } else {
-            let container_shape = self.compositor.create_container_shape()?;
-            let round_rect_geometry = self.compositor.create_rounded_rectangle_geometry()?;
-            round_rect_geometry.set_corner_radius(Vector2 { x: 5., y: 5. })?;
-            let round_rect_size = tile_size / 1.1;
-            round_rect_geometry.set_size(&round_rect_size)?;
-            let brush = self
-                .compositor
-                .create_color_brush_with_color(Self::get_tile_color(n)?)?;
-            let round_rect = self
-                .compositor
-                .create_sprite_shape_with_geometry(round_rect_geometry)?;
-            round_rect.set_fill_brush(brush)?;
-            round_rect.set_offset((tile_size - round_rect_size) / 2.)?;
-            container_shape.shapes()?.append(round_rect)?;
-            let shape: CompositionShape = container_shape.into();
-            self.tile_shapes.insert(n, shape.clone());
-            Ok(shape)
         }
     }
 }
@@ -277,7 +399,7 @@ fn run() -> winrt::Result<()> {
                 event: WindowEvent::CursorMoved { position, .. },
                 ..
             } => {
-                let point = Vector2 {
+                let _point = Vector2 {
                     x: position.x as f32,
                     y: position.y as f32,
                 };
@@ -303,7 +425,7 @@ fn run() -> winrt::Result<()> {
                 }
             }
             Event::WindowEvent {
-                event: WindowEvent::MouseInput { state, button, .. },
+                event: WindowEvent::MouseInput { state, .. },
                 ..
             } => if state == ElementState::Pressed {},
             _ => (),
