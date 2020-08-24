@@ -53,7 +53,7 @@ pub struct Game {
     game_score: ContainerVisual,
     game_board: ContainerVisual,
     game_board_tiles: HashMap<(usize, usize), Visual>,
-    garbage_tiles: Vec<Visual>,
+    merged_tiles: Vec<Visual>,
     tile_shapes: HashMap<u32, CompositionShape>,
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
 }
@@ -89,6 +89,7 @@ impl Game {
         let mut field = Field::new(4, 4);
         field.append_tile();
         field.append_tile();
+        field.fix_position();
 
         let canvas_device = CanvasDevice::get_shared_device()?;
         let composition_graphics_device =
@@ -103,7 +104,7 @@ impl Game {
             game_score,
             game_board,
             game_board_tiles: HashMap::new(),
-            garbage_tiles: Vec::new(),
+            merged_tiles: Vec::new(),
             tile_shapes: HashMap::new(),
             tile_text_layouts: HashMap::new(),
         };
@@ -112,6 +113,13 @@ impl Game {
         //        result.draw_score()?;
 
         Ok(result)
+    }
+
+    fn undo(&mut self) {
+        if self.field.can_undo() {
+            self.field.undo();
+            self.init_game_board().unwrap();
+        }
     }
 
     fn swipe(&mut self, side: Side) {
@@ -123,20 +131,24 @@ impl Game {
         }
     }
 
-    fn on_left_pressed(&mut self) {
+    fn on_left(&mut self) {
         self.swipe(Left);
     }
 
-    fn on_right_pressed(&mut self) {
+    fn on_right(&mut self) {
         self.swipe(Right);
     }
 
-    fn on_up_pressed(&mut self) {
+    fn on_up(&mut self) {
         self.swipe(Up);
     }
 
-    fn on_down_pressed(&mut self) {
+    fn on_down(&mut self) {
         self.swipe(Down);
+    }
+
+    fn on_undo(&mut self) {
+        self.undo();
     }
 
     pub fn draw_score(&mut self) -> winrt::Result<()> {
@@ -418,8 +430,8 @@ impl Game {
             .expect("merge emplty tile");
         Self::animated_move_tile(&visual1, from_x1, from_y1, x, y)?;
         Self::animated_move_tile(&visual2, from_x2, from_y2, x, y)?;
-        self.garbage_tiles.push(visual1);
-        self.garbage_tiles.push(visual2);
+        self.merged_tiles.push(visual1);
+        self.merged_tiles.push(visual2);
         self.create_tile_visual(x, y, n)
     }
 
@@ -428,6 +440,7 @@ impl Game {
             x: self.field.width() as f32 * TILE_SIZE.x,
             y: self.field.height() as f32 * TILE_SIZE.y,
         })?;
+        self.remove_merged_tiles()?;
         self.game_board.children()?.remove_all()?;
         //self.draw_game_board_border()?;
         self.game_board_tiles.clear();
@@ -443,15 +456,15 @@ impl Game {
         self.scale_game_board()
     }
 
-    fn remove_garbage_tiles(&mut self) -> winrt::Result<()> {
-        while let Some(tile) = self.garbage_tiles.pop() {
+    fn remove_merged_tiles(&mut self) -> winrt::Result<()> {
+        while let Some(tile) = self.merged_tiles.pop() {
             self.game_board.children()?.remove(tile)?;
         }
         Ok(())
     }
 
     fn animate_game_board(&mut self) -> winrt::Result<()> {
-        self.remove_garbage_tiles()?;
+        self.remove_merged_tiles()?;
         let mut new_board_tiles = HashMap::new();
         for x in 0..self.field.width() {
             for y in 0..self.field.height() {
@@ -577,10 +590,11 @@ fn run() -> winrt::Result<()> {
             } => {
                 if input.state == ElementState::Pressed {
                     match input.virtual_keycode {
-                        Some(VirtualKeyCode::Left) => game.on_left_pressed(),
-                        Some(VirtualKeyCode::Right) => game.on_right_pressed(),
-                        Some(VirtualKeyCode::Up) => game.on_up_pressed(),
-                        Some(VirtualKeyCode::Down) => game.on_down_pressed(),
+                        Some(VirtualKeyCode::Left) => game.on_left(),
+                        Some(VirtualKeyCode::Right) => game.on_right(),
+                        Some(VirtualKeyCode::Up) => game.on_up(),
+                        Some(VirtualKeyCode::Down) => game.on_down(),
+                        Some(VirtualKeyCode::Back) => game.on_undo(),
                         _ => (),
                     }
                 }

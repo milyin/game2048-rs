@@ -157,7 +157,7 @@ impl Field {
         self.put_from_side(Up, x, y, tile)
     }
 
-    fn drop_origins(&mut self) {
+    pub fn fix_position(&mut self) {
         let width = self.width();
         let height = self.height();
 
@@ -203,7 +203,7 @@ impl Field {
 
     pub fn swipe(&mut self, side: Side) {
         let width = self.width_from_side(side);
-        self.drop_origins();
+        self.fix_position();
         for x in 0..width {
             while self.swipe_step(side, x) {}
         }
@@ -231,6 +231,48 @@ impl Field {
         let v = rng.gen_range(1, 3);
         self.put(x, y, Some(Tile(v, Appear)));
         return true;
+    }
+
+    pub fn can_undo(&self) -> bool {
+        for x in 0..self.width() {
+            for y in 0..self.height() {
+                match self.get(x, y) {
+                    Some(Tile(_, Appear))
+                    | Some(Tile(_, Moved { .. }))
+                    | Some(Tile(_, Merged { .. })) => return true,
+                    _ => {}
+                }
+            }
+        }
+        return false;
+    }
+
+    pub fn undo(&mut self) {
+        let width = self.width();
+        let height = self.height();
+        let mut arr = Array2::default((height, width));
+        for x in 0..width {
+            for y in 0..height {
+                match self.get(x, y) {
+                    tile @ Some(Tile(_, Hold { .. })) => {
+                        let index = self.index_from_side(Up, x, y);
+                        *arr.get_mut(index).unwrap() = tile;
+                    }
+                    Some(Tile(n, Moved(from_x, from_y))) => {
+                        let index = self.index_from_side(Up, from_x, from_y);
+                        *arr.get_mut(index).unwrap() = Some(Tile(n, Hold(from_x, from_y)));
+                    }
+                    Some(Tile(n, Merged(a, b))) => {
+                        let index_a = self.index_from_side(Up, a.0, a.1);
+                        let index_b = self.index_from_side(Up, b.0, b.1);
+                        *arr.get_mut(index_a).unwrap() = Some(Tile(n - 1, Hold(a.0, a.1)));
+                        *arr.get_mut(index_b).unwrap() = Some(Tile(n - 1, Hold(b.0, b.1)));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.0 = arr;
     }
 }
 
