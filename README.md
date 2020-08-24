@@ -8,3 +8,5 @@ To complie and run it install 'cargo-winrt' as described here https://lib.rs/cra
 cargo winrt run
 
 ```
+
+![](https://raw.githubusercontent.com/milyin/game2048-rs/master/.github/images/2048.gif)
