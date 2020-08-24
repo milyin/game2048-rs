@@ -29,6 +29,9 @@ impl Tile {
     pub fn get_origin(&self) -> Origin {
         self.1
     }
+    pub fn set_origin(&mut self, origin: Origin) {
+        self.1 = origin
+    }
 }
 
 impl From<Tile> for u32 {
@@ -46,6 +49,14 @@ impl From<Tile> for Origin {
 impl Origin {
     fn hold(arr_index: (usize, usize)) -> Self {
         Hold(arr_index.1, arr_index.0)
+    }
+}
+fn can_join_tiles(dst: Option<Tile>, src: Option<Tile>) -> bool {
+    match (dst, src) {
+        (None, Some(_)) => true,
+        (Some(Tile(ld, _)), Some(Tile(ls, _))) => ld == ls,
+        (Some(_), None) => false,
+        (None, None) => false,
     }
 }
 fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> bool {
@@ -146,21 +157,15 @@ impl Field {
         self.put_from_side(Up, x, y, tile)
     }
 
-    fn drop_moves(&mut self) {
+    fn drop_origins(&mut self) {
         let width = self.width();
         let height = self.height();
 
         for x in 0..width {
             for y in 0..height {
-                if let Some(tile) = self.get(x, y) {
-                    self.put(
-                        x,
-                        y,
-                        Some(Tile {
-                            1: Hold(x, y),
-                            ..tile
-                        }),
-                    );
+                if let Some(mut tile) = self.get(x, y) {
+                    tile.set_origin(Hold(x, y));
+                    self.put(x, y, Some(tile));
                 }
             }
         }
@@ -181,20 +186,34 @@ impl Field {
         result
     }
 
+    pub fn can_swipe(&self, side: Side) -> bool {
+        let width = self.width_from_side(side);
+        let height = self.height_from_side(side);
+        for x in 0..width {
+            for y in 0..height - 1 {
+                let up = self.get_from_side(side, x, y);
+                let down = self.get_from_side(side, x, y + 1);
+                if can_join_tiles(up, down) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     pub fn swipe(&mut self, side: Side) {
         let width = self.width_from_side(side);
-        self.drop_moves();
+        self.drop_origins();
         for x in 0..width {
             while self.swipe_step(side, x) {}
         }
     }
+
     pub fn get_free_cells(&self) -> Vec<(usize, usize)> {
         let mut result = Vec::new();
-        let width = self.width_from_side(Down);
-        let height = self.height_from_side(Down);
-        for x in 0..width {
-            for y in 0..height {
-                if self.get_from_side(Down, x, y).is_none() {
+        for x in 0..self.width() {
+            for y in 0..self.height() {
+                if self.get(x, y).is_none() {
                     result.push((x, y));
                 }
             }
@@ -210,7 +229,7 @@ impl Field {
         }
         let (x, y) = poses[rng.gen_range(0, poses.len())];
         let v = rng.gen_range(1, 3);
-        self.put_from_side(Down, x, y, Some(Tile(v, Appear)));
+        self.put(x, y, Some(Tile(v, Appear)));
         return true;
     }
 }

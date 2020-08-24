@@ -115,10 +115,12 @@ impl Game {
     }
 
     fn swipe(&mut self, side: Side) {
-        self.field.swipe(side);
-        self.field.append_tile();
-        self.field.append_tile();
-        self.animate_game_board().unwrap();
+        if self.field.can_swipe(side) {
+            self.field.swipe(side);
+            self.field.append_tile();
+            self.field.append_tile();
+            self.animate_game_board().unwrap();
+        }
     }
 
     fn on_left_pressed(&mut self) {
@@ -253,6 +255,7 @@ impl Game {
             Ok(shape)
         }
     }
+
     pub fn get_tile_text_layout(&mut self, n: u32) -> winrt::Result<CanvasTextLayout> {
         if let Some(text_layout) = self.tile_text_layouts.get(&n) {
             Ok(text_layout.clone())
@@ -260,7 +263,7 @@ impl Game {
             let text_string: String = n.to_string();
             let text_format = CanvasTextFormat::new()?;
             text_format.set_font_family("Arial")?;
-            text_format.set_font_size(256.)?;
+            text_format.set_font_size(Self::get_tile_font_size(n))?;
 
             let text_layout = CanvasTextLayout::create(
                 &self.canvas_device,
@@ -497,6 +500,18 @@ impl Game {
             1024 => ColorHelper::from_argb(255, 237, 197, 63),
             2048 => ColorHelper::from_argb(255, 237, 194, 46),
             _ => ColorHelper::from_argb(255, 60, 58, 60),
+        }
+    }
+
+    fn get_tile_font_size(n: u32) -> f32 {
+        if n < 1000 {
+            256.
+        } else if n < 10000 {
+            180.
+        } else if n < 100000 {
+            150.
+        } else {
+            120.
         }
     }
 }
