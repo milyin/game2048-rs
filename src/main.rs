@@ -33,6 +33,7 @@ use bindings::windows::ui::Colors;
 use crate::window_target::CompositionDesktopWindowTargetSource;
 
 use model::field::Field;
+use model::field::Origin;
 use model::field::Side::Down;
 use model::field::Side::Left;
 use model::field::Side::Right;
@@ -113,25 +114,26 @@ impl Game {
     fn on_left_pressed(&mut self) {
         self.field.swipe(Left);
         self.field.append_tile();
-        self.init_game_board().unwrap(); // TODO: later reinit will be replaced by animation
+        self.animate_game_board().unwrap();
     }
 
     fn on_right_pressed(&mut self) {
         self.field.swipe(Right);
         self.field.append_tile();
-        self.init_game_board().unwrap();
+        self.animate_game_board().unwrap();
     }
 
     fn on_up_pressed(&mut self) {
         self.field.swipe(Up);
         self.field.append_tile();
-        self.init_game_board().unwrap();
+        dbg!(&self.field);
+        self.animate_game_board().unwrap();
     }
 
     fn on_down_pressed(&mut self) {
         self.field.swipe(Down);
         self.field.append_tile();
-        self.init_game_board().unwrap();
+        self.animate_game_board().unwrap();
     }
 
     pub fn draw_score(&mut self) -> winrt::Result<()> {
@@ -273,7 +275,7 @@ impl Game {
         }
     }
 
-    fn create_tile_visual(&mut self, n: u32) -> winrt::Result<Visual> {
+    fn create_tile_visual(&mut self, x: usize, y: usize, n: u32) -> winrt::Result<Visual> {
         let surface = self.composition_graphics_device.create_drawing_surface(
             Size {
                 width: TILE_SIZE.x,
@@ -308,7 +310,64 @@ impl Game {
         tile_visual.children()?.insert_at_top(tile_box)?;
         tile_visual.children()?.insert_at_top(number)?;
 
-        Ok(tile_visual.into())
+        tile_visual.set_offset(Vector3 {
+            x: TILE_SIZE.x * x as f32,
+            y: TILE_SIZE.y * y as f32,
+            z: 0.,
+        })?;
+        self.game_board.children()?.insert_at_top(&tile_visual)?;
+        let visual: Visual = tile_visual.into();
+
+        Ok(visual)
+    }
+
+    fn hold_tile_visual(&mut self, x: usize, y: usize) -> winrt::Result<Visual> {
+        Ok(self
+            .game_board_tiles
+            .remove(&(x, y))
+            .expect("hold emplty tile"))
+    }
+
+    fn move_tile_visual(
+        &mut self,
+        from_x: usize,
+        from_y: usize,
+        x: usize,
+        y: usize,
+    ) -> winrt::Result<Visual> {
+        let visual = self
+            .game_board_tiles
+            .remove(&(from_x, from_y))
+            .expect("move emplty tile");
+        visual.set_offset(Vector3 {
+            x: TILE_SIZE.x * x as f32,
+            y: TILE_SIZE.y * y as f32,
+            z: 0.,
+        })?;
+        Ok(visual)
+    }
+
+    fn merge_tile_visuals(
+        &mut self,
+        from_x1: usize,
+        from_y1: usize,
+        from_x2: usize,
+        from_y2: usize,
+        x: usize,
+        y: usize,
+        n: u32,
+    ) -> winrt::Result<Visual> {
+        let visual1 = self
+            .game_board_tiles
+            .remove(&(from_x1, from_y1))
+            .expect("merge emplty tile");
+        let visual2 = self
+            .game_board_tiles
+            .remove(&(from_x2, from_y2))
+            .expect("merge emplty tile");
+        self.game_board.children()?.remove(visual1)?;
+        self.game_board.children()?.remove(visual2)?;
+        self.create_tile_visual(x, y, n)
     }
 
     fn init_game_board(&mut self) -> winrt::Result<()> {
@@ -322,18 +381,47 @@ impl Game {
         for x in 0..self.field.width() {
             for y in 0..self.field.height() {
                 if let Some(tile) = self.field.get(x, y) {
-                    let visual = self.create_tile_visual(tile.into())?;
-                    visual.set_offset(Vector3 {
-                        x: TILE_SIZE.x * x as f32,
-                        y: TILE_SIZE.y * y as f32,
-                        z: 0.,
-                    })?;
-                    self.game_board.children()?.insert_at_top(&visual)?;
-                    self.game_board_tiles.insert((x, y), visual);
+                    let n = tile.get_n();
+                    let tile = self.create_tile_visual(x, y, n)?;
+                    self.game_board_tiles.insert((x, y), tile);
                 }
             }
         }
         self.scale_game_board()
+    }
+
+    fn animate_game_board(&mut self) -> winrt::Result<()> {
+        let mut new_board_tiles = HashMap::new();
+        for x in 0..self.field.width() {
+            for y in 0..self.field.height() {
+                if let Some(tile) = self.field.get(x, y) {
+                    let n = tile.get_n();
+                    match tile.get_origin() {
+                        Origin::Appear => {
+                            new_board_tiles.insert((x, y), self.create_tile_visual(x, y, n)?);
+                        }
+                        Origin::Hold { .. } => {
+                            new_board_tiles.insert((x, y), self.hold_tile_visual(x, y)?);
+                        }
+                        Origin::Moved(from_x, from_y) => {
+                            new_board_tiles
+                                .insert((x, y), self.move_tile_visual(from_x, from_y, x, y)?);
+                        }
+                        Origin::Merged((from_x1, from_y1), (from_x2, from_y2)) => {
+                            new_board_tiles.insert(
+                                (x, y),
+                                self.merge_tile_visuals(
+                                    from_x1, from_y1, from_x2, from_y2, x, y, n,
+                                )?,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(self.game_board_tiles.is_empty());
+        self.game_board_tiles = new_board_tiles;
+        Ok(())
     }
 
     fn get_tile_color(n: u32) -> winrt::Result<Color> {

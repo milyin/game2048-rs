@@ -1,6 +1,5 @@
 use ndarray::Array2;
 use rand::Rng;
-use JoinResult::{TileMerged, TileMoved};
 use Origin::{Appear, Hold, Merged, Moved};
 use Side::{Down, Left, Right, Up};
 
@@ -23,9 +22,24 @@ pub enum Origin {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Tile(u32, Origin);
 
+impl Tile {
+    pub fn get_n(&self) -> u32 {
+        1 << self.0
+    }
+    pub fn get_origin(&self) -> Origin {
+        self.1
+    }
+}
+
 impl From<Tile> for u32 {
     fn from(tile: Tile) -> u32 {
-        1 << tile.0
+        tile.get_n()
+    }
+}
+
+impl From<Tile> for Origin {
+    fn from(tile: Tile) -> Origin {
+        tile.get_origin()
     }
 }
 
@@ -34,22 +48,17 @@ impl Origin {
         Hold(arr_index.1, arr_index.0)
     }
 }
-enum JoinResult {
-    TileMoved,
-    TileMerged,
-}
-
-fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> Option<JoinResult> {
+fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> bool {
     match (*dst, *src) {
         (None, Some(Tile(level, Hold(x, y)))) | (None, Some(Tile(level, Moved(x, y)))) => {
             *dst = Some(Tile(level, Moved(x, y)));
             *src = None;
-            Some(TileMoved)
+            true
         }
         (None, Some(Tile(level, Merged(a, b)))) => {
             *dst = Some(Tile(level, Merged(a, b)));
             *src = None;
-            Some(TileMoved)
+            true
         }
         (Some(Tile(ld, Hold(xd, yd))), Some(Tile(ls, Hold(xs, ys))))
         | (Some(Tile(ld, Hold(xd, yd))), Some(Tile(ls, Moved(xs, ys))))
@@ -58,12 +67,12 @@ fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> Option<JoinResu
             if ld == ls {
                 *dst = Some(Tile(ld + 1, Merged((xd, yd), (xs, ys))));
                 *src = None;
-                Some(TileMerged)
+                true
             } else {
-                None
+                false
             }
         }
-        _ => None,
+        _ => false,
     }
 }
 
@@ -133,16 +142,18 @@ impl Field {
     pub fn get(&self, x: usize, y: usize) -> Option<Tile> {
         self.get_from_side(Up, x, y)
     }
+    pub fn put(&mut self, x: usize, y: usize, tile: Option<Tile>) {
+        self.put_from_side(Up, x, y, tile)
+    }
 
-    pub fn swipe(&mut self, side: Side) {
-        let width = self.width_from_side(side);
-        let height = self.height_from_side(side);
+    fn drop_moves(&mut self) {
+        let width = self.width();
+        let height = self.height();
 
         for x in 0..width {
             for y in 0..height {
-                if let Some(tile) = self.get_from_side(side, x, y) {
-                    self.put_from_side(
-                        side,
+                if let Some(tile) = self.get(x, y) {
+                    self.put(
                         x,
                         y,
                         Some(Tile {
@@ -153,44 +164,28 @@ impl Field {
                 }
             }
         }
+    }
 
+    fn swipe_step(&mut self, side: Side, x: usize) -> bool {
+        let mut result = false;
+        let height = self.height_from_side(side);
+        for y in 0..height - 1 {
+            let mut up = self.get_from_side(side, x, y);
+            let mut down = self.get_from_side(side, x, y + 1);
+            if join_tiles(&mut up, &mut down) {
+                self.put_from_side(side, x, y, up);
+                self.put_from_side(side, x, y + 1, down);
+                result = true;
+            }
+        }
+        result
+    }
+
+    pub fn swipe(&mut self, side: Side) {
+        let width = self.width_from_side(side);
+        self.drop_moves();
         for x in 0..width {
-            let mut repeat_start_from = Some(0);
-            while repeat_start_from.is_some() {
-                let start_from = repeat_start_from.unwrap();
-                repeat_start_from = None;
-                for y in start_from..height - 1 {
-                    let mut up = self.get_from_side(side, x, y);
-                    let mut down = self.get_from_side(side, x, y + 1);
-
-                    if let Some(join_result) = join_tiles(&mut up, &mut down) {
-                        self.put_from_side(side, x, y, up);
-                        self.put_from_side(side, x, y + 1, down);
-                        if repeat_start_from.is_none() {
-                            match join_result {
-                                TileMerged => {
-                                    repeat_start_from = Some(y + 1);
-                                }
-                                TileMoved => repeat_start_from = Some(y),
-                            }
-                        }
-                    }
-                }
-            }
-            let mut repeat_start_from = Some(0);
-            while repeat_start_from.is_some() {
-                let start_from = repeat_start_from.unwrap();
-                repeat_start_from = None;
-                for y in start_from..height - 1 {
-                    let mut up = self.get_from_side(side, x, y);
-                    let mut down = self.get_from_side(side, x, y + 1);
-                    if let Some(TileMoved) = join_tiles(&mut up, &mut down) {
-                        self.put_from_side(side, x, y, up);
-                        self.put_from_side(side, x, y + 1, down);
-                        repeat_start_from = Some(0)
-                    }
-                }
-            }
+            while self.swipe_step(side, x) {}
         }
     }
     pub fn get_free_cells(&self) -> Vec<(usize, usize)> {
@@ -222,15 +217,15 @@ impl Field {
 
 #[cfg(test)]
 mod tests {
-    use crate::Origin::{Hold, Merged /*, Moved*/};
-    use crate::Tile;
+    use super::Origin::{Hold, Merged, Moved};
+    use super::Tile;
 
     pub fn hold(level: u32, x: usize, y: usize) -> Option<Tile> {
         Some(Tile(level, Hold(x, y)))
     }
-    //pub fn moved(level: u32, x: usize, y: usize) -> Option<Tile> {
-    //    Some(Tile(level, Moved(x, y)))
-    //}
+    pub fn moved(level: u32, x: usize, y: usize) -> Option<Tile> {
+        Some(Tile(level, Moved(x, y)))
+    }
     pub fn merged(level: u32, a: (usize, usize), b: (usize, usize)) -> Option<Tile> {
         Some(Tile(level, Merged(a, b)))
     }
@@ -238,8 +233,8 @@ mod tests {
 
 #[test]
 fn field_widht_height_at() {
-    use crate::tests::hold;
     use ndarray::arr2;
+    use tests::hold;
     let field = Field(arr2(&[
         [hold(0, 0, 0), hold(10, 1, 0), hold(20, 2, 0)],
         [hold(1, 0, 1), hold(11, 1, 1), hold(21, 2, 1)],
@@ -263,8 +258,8 @@ fn field_widht_height_at() {
 
 #[test]
 fn field_from_array() {
-    use crate::tests::hold;
     use ndarray::arr2;
+    use tests::hold;
     #[rustfmt::skip]
     let array = Array2::from_shape_vec((4, 3), vec![
         8, 4, 2, 
@@ -286,8 +281,8 @@ fn field_from_array() {
 
 #[test]
 fn field_into_array() {
-    use crate::tests::hold;
     use ndarray::arr2;
+    use tests::hold;
     let source = arr2(&[
         [hold(3, 0, 0), hold(2, 0, 0), hold(1, 0, 0)],
         [hold(2, 0, 0), hold(1, 0, 0), hold(0, 0, 0)],
@@ -307,27 +302,28 @@ fn field_into_array() {
 
 #[test]
 fn swipe_up() {
-    use crate::tests::hold;
-    use crate::tests::merged;
     use ndarray::arr2;
+    use tests::hold;
+    use tests::merged;
+    use tests::moved;
     #[rustfmt::skip]
     let array = Array2::from_shape_vec((4, 4), vec![
         0, 2, 4, 4,
         0, 2, 2, 4,
         0, 0, 2, 2,
-        0, 0, 0, 2
+        2, 0, 0, 2
     ]).unwrap();
     let mut field = Field::from_array(array);
     #[rustfmt::skip]
     let expected = Array2::from_shape_vec((4, 4), vec![
-        0, 4, 4, 8,
+        2, 4, 4, 8,
         0, 0, 4, 4,
         0, 0, 0, 0,
         0, 0, 0, 0
     ]).unwrap();
     let expected_field = arr2(&[
         [
-            None,
+            moved(1, 0, 3),
             merged(2, (1, 0), (1, 1)),
             hold(2, 2, 0),
             merged(3, (3, 0), (3, 1)),
@@ -369,23 +365,35 @@ fn swipe_down() {
 
 #[test]
 fn swipe_left() {
+    use ndarray::arr2;
+    use tests::hold;
+    use tests::merged;
+    use tests::moved;
     #[rustfmt::skip]
     let array = Array2::from_shape_vec((4, 4), vec![
         0, 2, 4, 4,
         0, 2, 2, 4,
-        0, 0, 2, 2,
-        0, 0, 0, 2
+        4, 0, 2, 2,
+        2, 0, 0, 2
     ]).unwrap();
     let mut field = Field::from_array(array);
     #[rustfmt::skip]
     let expected = Array2::from_shape_vec((4, 4), vec![
         2, 8, 0, 0,
         4, 4, 0, 0,
+        4, 4, 0, 0,
         4, 0, 0, 0,
-        2, 0, 0, 0,
     ]).unwrap();
+    let expected_field = arr2(&[
+        [moved(1, 1, 0), merged(3, (2, 0), (3, 0)), None, None],
+        [merged(2, (1, 1), (2, 1)), moved(2, 3, 1), None, None],
+        [hold(2, 0, 2), merged(2, (2, 2), (3, 2)), None, None],
+        [merged(2, (0, 3), (3, 3)), None, None, None],
+    ]);
     field.swipe(Left);
+    #[rustfmt::skip]
     assert_eq!(field.into_array(), expected);
+    assert_eq!(field.0, expected_field);
 }
 
 #[test]

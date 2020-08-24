@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 winit = "0.22.2"
 raw-window-handle = "0.3.3"
-winrt = "0.7.1"
+winrt = "0.7.2"
 rand = "0.7.3"
 bindings = { path = "bindings" }
 model = { path = "model" }
