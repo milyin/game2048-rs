@@ -34,6 +34,7 @@ use crate::window_target::CompositionDesktopWindowTargetSource;
 
 use model::field::Field;
 use model::field::Origin;
+use model::field::Side;
 use model::field::Side::Down;
 use model::field::Side::Left;
 use model::field::Side::Right;
@@ -52,6 +53,7 @@ pub struct Game {
     game_score: ContainerVisual,
     game_board: ContainerVisual,
     game_board_tiles: HashMap<(usize, usize), Visual>,
+    garbage_tiles: Vec<Visual>,
     tile_shapes: HashMap<u32, CompositionShape>,
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
 }
@@ -101,6 +103,7 @@ impl Game {
             game_score,
             game_board,
             game_board_tiles: HashMap::new(),
+            garbage_tiles: Vec::new(),
             tile_shapes: HashMap::new(),
             tile_text_layouts: HashMap::new(),
         };
@@ -111,29 +114,27 @@ impl Game {
         Ok(result)
     }
 
-    fn on_left_pressed(&mut self) {
-        self.field.swipe(Left);
+    fn swipe(&mut self, side: Side) {
+        self.field.swipe(side);
+        self.field.append_tile();
         self.field.append_tile();
         self.animate_game_board().unwrap();
+    }
+
+    fn on_left_pressed(&mut self) {
+        self.swipe(Left);
     }
 
     fn on_right_pressed(&mut self) {
-        self.field.swipe(Right);
-        self.field.append_tile();
-        self.animate_game_board().unwrap();
+        self.swipe(Right);
     }
 
     fn on_up_pressed(&mut self) {
-        self.field.swipe(Up);
-        self.field.append_tile();
-        dbg!(&self.field);
-        self.animate_game_board().unwrap();
+        self.swipe(Up);
     }
 
     fn on_down_pressed(&mut self) {
-        self.field.swipe(Down);
-        self.field.append_tile();
-        self.animate_game_board().unwrap();
+        self.swipe(Down);
     }
 
     pub fn draw_score(&mut self) -> winrt::Result<()> {
@@ -317,7 +318,7 @@ impl Game {
         })?;
         self.game_board.children()?.insert_at_top(&tile_visual)?;
         let visual: Visual = tile_visual.into();
-
+        Self::animated_appear_tile(&visual)?;
         Ok(visual)
     }
 
@@ -326,6 +327,57 @@ impl Game {
             .game_board_tiles
             .remove(&(x, y))
             .expect("hold emplty tile"))
+    }
+
+    fn animated_move_tile(
+        visual: &Visual,
+        from_x: usize,
+        from_y: usize,
+        x: usize,
+        y: usize,
+    ) -> winrt::Result<()> {
+        let compositor = visual.compositor()?;
+        let animation = compositor.create_vector3_key_frame_animation()?;
+        let animate_from = Vector3 {
+            x: TILE_SIZE.x * from_x as f32,
+            y: TILE_SIZE.y * from_y as f32,
+            z: 0.,
+        };
+        let animate_to = Vector3 {
+            x: TILE_SIZE.x * x as f32,
+            y: TILE_SIZE.y * y as f32,
+            z: 0.,
+        };
+        animation.insert_key_frame(0.0, animate_from)?;
+        animation.insert_key_frame(1.0, animate_to)?;
+        visual.start_animation("Offset", animation)?;
+        Ok(())
+    }
+
+    fn animated_appear_tile(visual: &Visual) -> winrt::Result<()> {
+        let compositor = visual.compositor()?;
+
+        let animation = compositor.create_vector3_key_frame_animation()?;
+        let animate_from = Vector3 {
+            x: 0.,
+            y: 0.,
+            z: 0.,
+        };
+        let animate_to = Vector3 {
+            x: 1.,
+            y: 1.,
+            z: 0.,
+        };
+        animation.insert_key_frame(0.0, animate_from)?;
+        animation.insert_key_frame(1.0, animate_to)?;
+        let size = visual.size()?;
+        visual.set_center_point(Vector3 {
+            x: size.x / 2.,
+            y: size.y / 2.,
+            z: 0.,
+        })?;
+        visual.start_animation("Scale", animation)?;
+        Ok(())
     }
 
     fn move_tile_visual(
@@ -339,11 +391,7 @@ impl Game {
             .game_board_tiles
             .remove(&(from_x, from_y))
             .expect("move emplty tile");
-        visual.set_offset(Vector3 {
-            x: TILE_SIZE.x * x as f32,
-            y: TILE_SIZE.y * y as f32,
-            z: 0.,
-        })?;
+        Self::animated_move_tile(&visual, from_x, from_y, x, y)?;
         Ok(visual)
     }
 
@@ -365,8 +413,10 @@ impl Game {
             .game_board_tiles
             .remove(&(from_x2, from_y2))
             .expect("merge emplty tile");
-        self.game_board.children()?.remove(visual1)?;
-        self.game_board.children()?.remove(visual2)?;
+        Self::animated_move_tile(&visual1, from_x1, from_y1, x, y)?;
+        Self::animated_move_tile(&visual2, from_x2, from_y2, x, y)?;
+        self.garbage_tiles.push(visual1);
+        self.garbage_tiles.push(visual2);
         self.create_tile_visual(x, y, n)
     }
 
@@ -390,7 +440,15 @@ impl Game {
         self.scale_game_board()
     }
 
+    fn remove_garbage_tiles(&mut self) -> winrt::Result<()> {
+        while let Some(tile) = self.garbage_tiles.pop() {
+            self.game_board.children()?.remove(tile)?;
+        }
+        Ok(())
+    }
+
     fn animate_game_board(&mut self) -> winrt::Result<()> {
+        self.remove_garbage_tiles()?;
         let mut new_board_tiles = HashMap::new();
         for x in 0..self.field.width() {
             for y in 0..self.field.height() {
