@@ -1,13 +1,9 @@
+mod game_window;
 mod interop;
 mod numerics;
 mod window_target;
 
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
-use winit::{
-    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
 
 use bindings::microsoft::graphics::canvas::text::CanvasHorizontalAlignment;
 use bindings::microsoft::graphics::canvas::text::CanvasTextFormat;
@@ -29,8 +25,9 @@ use bindings::windows::ui::composition::Visual;
 use bindings::windows::ui::Color;
 use bindings::windows::ui::ColorHelper;
 use bindings::windows::ui::Colors;
+use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 
-use crate::window_target::CompositionDesktopWindowTargetSource;
+use game_window::GameWindow;
 
 use model::field::Field;
 use model::field::Origin;
@@ -45,10 +42,10 @@ const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
 pub struct Game {
-    root: Visual,
     compositor: Compositor,
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
+    root: Visual,
     field: Field,
     game_score: ContainerVisual,
     game_board: ContainerVisual,
@@ -59,14 +56,18 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(parent_visual: &ContainerVisual, parent_size: &Vector2) -> winrt::Result<Self> {
-        let compositor = parent_visual.compositor()?;
+    pub fn new(game_gui: &mut GameWindow) -> winrt::Result<Self> {
+        let compositor = game_gui.compositor().clone();
         let root = compositor.create_sprite_visual()?;
-        root.set_relative_size_adjustment(Vector2 { x: 1.0, y: 1.0 })?;
-        root.set_size(parent_size)?;
-        root.set_brush(compositor.create_color_brush_with_color(Colors::white()?)?)?;
+        root.set_size(game_gui.root().size()?)?;
+        root.set_offset(Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        })?;
+        root.set_brush(compositor.create_color_brush_with_color(Colors::red()?)?)?;
         root.set_border_mode(CompositionBorderMode::Hard)?;
-        parent_visual.children()?.insert_at_top(&root)?;
+        game_gui.root().children()?.insert_at_top(&root)?;
 
         let game_board = compositor.create_container_visual()?;
         game_board.set_relative_offset_adjustment(Vector3 {
@@ -91,15 +92,11 @@ impl Game {
         field.append_tile();
         field.fix_position();
 
-        let canvas_device = CanvasDevice::get_shared_device()?;
-        let composition_graphics_device =
-            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
-
         let mut result = Self {
-            root: root.into(),
             compositor,
-            canvas_device,
-            composition_graphics_device,
+            canvas_device: game_gui.canvas_device().clone(),
+            composition_graphics_device: game_gui.composition_graphics_device().clone(),
+            root: root.into(),
             field,
             game_score,
             game_board,
@@ -115,40 +112,22 @@ impl Game {
         Ok(result)
     }
 
-    fn undo(&mut self) {
+    fn undo(&mut self) -> winrt::Result<()> {
         if self.field.can_undo() {
             self.field.undo();
-            self.init_game_board().unwrap();
+            self.init_game_board()?;
         }
+        Ok(())
     }
 
-    fn swipe(&mut self, side: Side) {
+    fn swipe(&mut self, side: Side) -> winrt::Result<()> {
         if self.field.can_swipe(side) {
             self.field.swipe(side);
             self.field.append_tile();
             self.field.append_tile();
-            self.animate_game_board().unwrap();
+            self.animate_game_board()?;
         }
-    }
-
-    fn on_left(&mut self) {
-        self.swipe(Left);
-    }
-
-    fn on_right(&mut self) {
-        self.swipe(Right);
-    }
-
-    fn on_up(&mut self) {
-        self.swipe(Up);
-    }
-
-    fn on_down(&mut self) {
-        self.swipe(Down);
-    }
-
-    fn on_undo(&mut self) {
-        self.undo();
+        Ok(())
     }
 
     pub fn draw_score(&mut self) -> winrt::Result<()> {
@@ -214,8 +193,7 @@ impl Game {
         Ok(())
     }
 
-    pub fn on_parent_size_changed(&mut self, new_size: &Vector2) -> winrt::Result<()> {
-        self.root.set_size(new_size)?;
+    pub fn on_parent_size_changed(&mut self) -> winrt::Result<()> {
         self.scale_game_board()
     }
 
@@ -528,84 +506,43 @@ impl Game {
         }
     }
 }
-
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
     let _controller = create_dispatcher_queue_controller_for_current_thread()?;
 
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-    window.set_title("2048");
-
-    let compositor = Compositor::new()?;
-    let target = window.create_window_target(&compositor, false)?;
-
-    let root = compositor.create_container_visual()?;
-    root.set_relative_size_adjustment(Vector2 { x: 0.0, y: 0.0 })?;
-    target.set_root(&root)?;
-
-    let window_size = window.inner_size();
-    let window_size = Vector2 {
-        x: window_size.width as f32,
-        y: window_size.height as f32,
-    };
-
-    let mut game = Game::new(&root, &window_size)?;
-
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            Event::WindowEvent {
-                event: WindowEvent::Resized(size),
-                ..
-            } => {
-                let size = Vector2 {
-                    x: size.width as f32,
-                    y: size.height as f32,
-                };
-                game.on_parent_size_changed(&size).unwrap();
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => {
-                let _point = Vector2 {
-                    x: position.x as f32,
-                    y: position.y as f32,
-                };
-            }
-            //Event::WindowEvent { event: WindowEvent::KeyboardInput {input: {VirtualKeycode: Some(VirtualKeycode::Escape)}} => {},
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        device_id: _,
-                        input,
-                        is_synthetic: _,
-                    },
-                ..
-            } => {
-                if input.state == ElementState::Pressed {
-                    match input.virtual_keycode {
-                        Some(VirtualKeyCode::Left) => game.on_left(),
-                        Some(VirtualKeyCode::Right) => game.on_right(),
-                        Some(VirtualKeyCode::Up) => game.on_up(),
-                        Some(VirtualKeyCode::Down) => game.on_down(),
-                        Some(VirtualKeyCode::Back) => game.on_undo(),
-                        _ => (),
-                    }
+    let mut window = GameWindow::new()?;
+    window.window().set_title("2048");
+    let mut game = Game::new(&mut window)?;
+    window.run(move |event| match event {
+        Event::WindowEvent {
+            event: WindowEvent::Resized(_),
+            ..
+        } => game.scale_game_board(),
+        Event::WindowEvent {
+            event:
+                WindowEvent::KeyboardInput {
+                    device_id: _,
+                    input,
+                    is_synthetic: _,
+                },
+            ..
+        } => {
+            if input.state == ElementState::Pressed {
+                match input.virtual_keycode {
+                    Some(VirtualKeyCode::Left) => game.swipe(Left),
+                    Some(VirtualKeyCode::Right) => game.swipe(Right),
+                    Some(VirtualKeyCode::Up) => game.swipe(Up),
+                    Some(VirtualKeyCode::Down) => game.swipe(Down),
+                    Some(VirtualKeyCode::Back) => game.undo(),
+                    _ => Ok(()),
                 }
+            } else {
+                Ok(())
             }
-            Event::WindowEvent {
-                event: WindowEvent::MouseInput { state, .. },
-                ..
-            } => if state == ElementState::Pressed {},
-            _ => (),
         }
+        _ => Ok(()),
     });
+    Ok(())
 }
 
 fn main() {
