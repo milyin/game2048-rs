@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc::Receiver};
 
 use bindings::{
     microsoft::graphics::canvas::text::CanvasHorizontalAlignment,
@@ -16,29 +16,54 @@ use bindings::{
     windows::ui::Color, windows::ui::ColorHelper, windows::ui::Colors,
 };
 use model::field::{Field, Origin, Side};
+use winit::event::{Event, WindowEvent};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::GameWindow;
+use crate::game_window::{GameWindow, Panel};
+
+use std::sync::mpsc;
 pub struct GameField {
     compositor: Compositor,
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
-    root: Visual,
+    root: ContainerVisual,
     field: Field,
     game_board: ContainerVisual,
     game_board_tiles: HashMap<(usize, usize), Visual>,
     merged_tiles: Vec<Visual>,
     tile_shapes: HashMap<u32, CompositionShape>,
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
+    rx: Receiver<Side>,
+}
+
+impl Panel for GameField {
+    fn visual(&self) -> ContainerVisual {
+        self.root.clone()
+    }
+    fn adjust_size(&mut self) -> winrt::Result<()> {
+        self.visual().set_size(self.visual().parent()?.size()?)?;
+        self.scale_game_board()
+    }
+    fn handle_event(&mut self, evt: &Event<'_, ()>) -> winrt::Result<()> {
+        match evt {
+            Event::MainEventsCleared => {
+                let ops: Vec<Side> = self.rx.try_iter().collect();
+                for side in ops {
+                    self.swipe(side)?;
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
 }
 
 impl GameField {
-    pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
+    pub fn new(game_window: &mut GameWindow, rx: Receiver<Side>) -> winrt::Result<Self> {
         let compositor = game_window.compositor().clone();
         let root = compositor.create_sprite_visual()?;
-        root.set_size(game_window.root().size()?)?;
         root.set_offset(Vector3 {
             x: 0.0,
             y: 0.0,
@@ -46,7 +71,6 @@ impl GameField {
         })?;
         //        root.set_brush(compositor.create_color_brush_with_color(Colors::red()?)?)?;
         root.set_border_mode(CompositionBorderMode::Hard)?;
-        game_window.root().children()?.insert_at_top(&root)?;
 
         let game_board = compositor.create_container_visual()?;
         game_board.set_relative_offset_adjustment(Vector3 {
@@ -78,6 +102,7 @@ impl GameField {
             merged_tiles: Vec::new(),
             tile_shapes: HashMap::new(),
             tile_text_layouts: HashMap::new(),
+            rx,
         };
 
         result.init_game_board()?;
@@ -103,7 +128,12 @@ impl GameField {
         Ok(())
     }
 
-    pub fn scale_game_board(&mut self) -> winrt::Result<()> {
+    pub fn adjust_size(&mut self) -> winrt::Result<()> {
+        self.root.set_size(self.root.parent()?.size()?)?;
+        self.scale_game_board()
+    }
+
+    fn scale_game_board(&mut self) -> winrt::Result<()> {
         let board_size = self.game_board.size()?;
         let board_size = board_size + GAME_BOARD_MARGIN;
 
@@ -337,7 +367,7 @@ impl GameField {
                 }
             }
         }
-        self.scale_game_board()
+        Ok(())
     }
 
     fn remove_merged_tiles(&mut self) -> winrt::Result<()> {

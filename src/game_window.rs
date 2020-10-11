@@ -13,6 +13,16 @@ use winit::{
     window::WindowBuilder,
 };
 
+pub trait Panel {
+    fn visual(&self) -> ContainerVisual;
+    fn adjust_size(&mut self) -> winrt::Result<()> {
+        self.visual().set_size(self.visual().parent()?.size()?)
+    }
+    fn handle_event(&mut self, _evt: &Event<'_, ()>) -> winrt::Result<()> {
+        Ok(())
+    }
+}
+
 pub struct GameWindow {
     compositor: Compositor,
     canvas_device: CanvasDevice,
@@ -21,6 +31,7 @@ pub struct GameWindow {
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<()>>,
     window: Window,
+    panel: Option<Box<dyn Panel>>,
 }
 
 impl GameWindow {
@@ -50,6 +61,7 @@ impl GameWindow {
             _target: target,
             event_loop: Some(event_loop),
             window,
+            panel: None,
         })
     }
     pub fn window(&mut self) -> &mut Window {
@@ -64,8 +76,14 @@ impl GameWindow {
     pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
         &self.composition_graphics_device
     }
-    pub fn root(&self) -> &ContainerVisual {
+    pub fn visual(&self) -> &ContainerVisual {
         &self.root
+    }
+
+    pub fn set_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+        self.visual().children()?.insert_at_top(panel.visual())?;
+        self.panel = Some(Box::new(panel));
+        Ok(())
     }
 
     pub fn run<F>(mut self, mut event_handler: F)
@@ -73,9 +91,10 @@ impl GameWindow {
         F: 'static + FnMut(Event<'_, ()>) -> winrt::Result<()>,
     {
         let event_loop = self.event_loop.take().unwrap();
-        event_loop.run(move |event, _, control_flow| {
+        let mut panel = self.panel.take().unwrap();
+        event_loop.run(move |evt, _, control_flow| {
             *control_flow = ControlFlow::Wait;
-            match event {
+            match evt {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
@@ -89,9 +108,14 @@ impl GameWindow {
                         y: size.height as f32,
                     };
                     self.root.set_size(&window_size).unwrap();
-                    event_handler(event).unwrap()
+                    panel.adjust_size().unwrap();
+                    panel.handle_event(&evt).unwrap();
+                    event_handler(evt).unwrap()
                 }
-                e => event_handler(e).unwrap(),
+                evt => {
+                    panel.handle_event(&evt).unwrap();
+                    event_handler(evt).unwrap()
+                }
             }
         });
     }
