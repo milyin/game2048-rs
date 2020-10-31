@@ -5,32 +5,49 @@ mod interop;
 mod numerics;
 mod window_target;
 
+use std::any::Any;
+
 use game_field::GameField;
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 
-use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use winit::{
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
+    event_loop::EventLoopProxy,
+};
 
-use game_window::GameWindow;
+use game_window::{GameWindow, SendUserEvent};
 
-use model::field::Side::Down;
-use model::field::Side::Left;
 use model::field::Side::Right;
 use model::field::Side::Up;
+use model::field::Side::{self, Left};
+use model::field::{Field, Side::Down};
 
-use std::sync::mpsc;
+fn swipe(field: &mut Field, side: Side, proxy: &EventLoopProxy<Box<dyn Any>>) -> winrt::Result<()> {
+    if field.can_swipe(side) {
+        field.swipe(side);
+        field.append_tile();
+        field.append_tile();
+        proxy.send_user_event(field.clone())
+    } else {
+        Ok(())
+    }
+}
 
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
     let _controller = create_dispatcher_queue_controller_for_current_thread()?;
 
-    let (tx, rx) = mpsc::channel();
+    let mut field = Field::new(4, 4);
+    field.append_tile();
+    field.append_tile();
 
     let mut window = GameWindow::new()?;
     window.window().set_title("2048");
-    let game_field = GameField::new(&mut window, rx)?;
+    let mut game_field = GameField::new(&mut window)?;
+    game_field.animate_set_field(&field)?;
     window.set_panel(game_field)?;
 
-    window.run(move |event| match event {
+    window.run(move |event, proxy| match event {
         Event::WindowEvent {
             event:
                 WindowEvent::KeyboardInput {
@@ -42,19 +59,12 @@ fn run() -> winrt::Result<()> {
         } => {
             if input.state == ElementState::Pressed {
                 match input.virtual_keycode {
-                    Some(VirtualKeyCode::Left) => tx.send(Left).unwrap(),
-                    Some(VirtualKeyCode::Right) => tx.send(Right).unwrap(),
-                    Some(VirtualKeyCode::Up) => tx.send(Up).unwrap(),
-                    Some(VirtualKeyCode::Down) => tx.send(Down).unwrap(),
-                    _ => (),
-                    //Some(VirtualKeyCode::Left) => game_field.swipe(Left),
-                    //Some(VirtualKeyCode::Right) => game_field.swipe(Right),
-                    //Some(VirtualKeyCode::Up) => game_field.swipe(Up),
-                    //Some(VirtualKeyCode::Down) => game_field.swipe(Down),
-                    //Some(VirtualKeyCode::Back) => game_field.undo(),
-                    //_ => Ok(()),
+                    Some(VirtualKeyCode::Left) => swipe(&mut field, Left, proxy),
+                    Some(VirtualKeyCode::Right) => swipe(&mut field, Right, proxy),
+                    Some(VirtualKeyCode::Up) => swipe(&mut field, Up, proxy),
+                    Some(VirtualKeyCode::Down) => swipe(&mut field, Down, proxy),
+                    _ => Ok(()),
                 }
-                Ok(())
             } else {
                 Ok(())
             }

@@ -87,7 +87,7 @@ fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> bool {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Field(Array2<Option<Tile>>);
 
 impl Field {
@@ -157,7 +157,7 @@ impl Field {
         self.put_from_side(Up, x, y, tile)
     }
 
-    pub fn fix_position(&mut self) {
+    pub fn hold_all(&mut self) {
         let width = self.width();
         let height = self.height();
 
@@ -203,7 +203,7 @@ impl Field {
 
     pub fn swipe(&mut self, side: Side) {
         let width = self.width_from_side(side);
-        self.fix_position();
+        self.hold_all();
         for x in 0..width {
             while self.swipe_step(side, x) {}
         }
