@@ -50,8 +50,8 @@ fn run() -> winrt::Result<()> {
 
     let empty_panel = EmptyPanel::new(&window)?;
     let mut vribbon = Ribbon::new(&window, RibbonOrientation::Vertical)?;
-    vribbon.add_panel(empty_panel)?;
-    vribbon.add_panel(game_field)?;
+    vribbon.add_panel(empty_panel, 1.)?;
+    vribbon.add_panel(game_field, 4.)?;
 
     window.set_panel(vribbon)?;
 

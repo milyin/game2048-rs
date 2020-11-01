@@ -1,5 +1,5 @@
 use bindings::windows::{
-    foundation::numerics::Vector3,
+    foundation::numerics::{Vector2, Vector3},
     ui::composition::{Compositor, ContainerVisual},
 };
 
@@ -14,6 +14,7 @@ pub enum RibbonOrientation {
 struct RibbonCell {
     panel: Box<dyn Panel>,
     container: ContainerVisual,
+    ratio: f32,
 }
 
 pub struct Ribbon {
@@ -34,7 +35,7 @@ impl Ribbon {
             ribbon,
         })
     }
-    pub fn add_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+    pub fn add_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
         let container = self.compositor.create_container_visual()?;
         container
             .children()?
@@ -45,6 +46,7 @@ impl Ribbon {
         let cell = RibbonCell {
             panel: Box::new(panel),
             container,
+            ratio,
         };
         self.cells.push(cell);
         self.resize_cells()?;
@@ -52,31 +54,38 @@ impl Ribbon {
     }
 
     fn resize_cells(&mut self) -> winrt::Result<()> {
-        let mut size = self.ribbon.size()?;
-        let count = self.cells.len();
+        let size = self.ribbon.size()?;
         let hor = self.orientation == RibbonOrientation::Horizontal;
-        if hor {
-            size.x /= count as f32
-        } else {
-            size.y /= count as f32;
-        };
-
-        for n in 0..count {
-            let cell = self.cells.get(n).unwrap();
+        let total = self.cells.iter().map(|c| c.ratio).sum::<f32>();
+        let mut pos: f32 = 0.;
+        for cell in &self.cells {
+            let share = if hor { size.x } else { size.y } * cell.ratio / total;
+            let size = if hor {
+                Vector2 {
+                    x: share,
+                    y: size.y,
+                }
+            } else {
+                Vector2 {
+                    x: size.x,
+                    y: share,
+                }
+            };
             cell.container.set_size(&size)?;
             cell.container.set_offset(if hor {
                 Vector3 {
-                    x: (n as f32) * size.x,
+                    x: pos,
                     y: 0.,
                     z: 0.,
                 }
             } else {
                 Vector3 {
                     x: 0.,
-                    y: (n as f32) * size.y,
+                    y: pos,
                     z: 0.,
                 }
             })?;
+            pos += share;
         }
         for p in &mut self.cells {
             p.panel.on_resize()?;
