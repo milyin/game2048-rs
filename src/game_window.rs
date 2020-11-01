@@ -46,6 +46,23 @@ impl SendUserEvent for EventLoopProxy<Box<dyn Any>> {
     }
 }
 
+pub struct EmptyPanel {
+    visual: ContainerVisual,
+}
+
+impl EmptyPanel {
+    pub fn new(game_window: &GameWindow) -> winrt::Result<Self> {
+        let visual = game_window.compositor().create_container_visual()?;
+        Ok(Self { visual })
+    }
+}
+
+impl Panel for EmptyPanel {
+    fn visual(&self) -> ContainerVisual {
+        self.visual.clone()
+    }
+}
+
 pub struct GameWindow {
     compositor: Compositor,
     canvas_device: CanvasDevice,

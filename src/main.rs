@@ -3,6 +3,7 @@ mod game_field;
 mod game_window;
 mod interop;
 mod numerics;
+mod ribbon;
 mod window_target;
 
 use std::any::Any;
@@ -10,12 +11,13 @@ use std::any::Any;
 use game_field::GameField;
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 
+use ribbon::{Ribbon, RibbonOrientation};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::EventLoopProxy,
 };
 
-use game_window::{GameWindow, SendUserEvent};
+use game_window::{EmptyPanel, GameWindow, SendUserEvent};
 
 use model::field::Side::Right;
 use model::field::Side::Up;
@@ -45,7 +47,13 @@ fn run() -> winrt::Result<()> {
     window.window().set_title("2048");
     let mut game_field = GameField::new(&mut window)?;
     game_field.animate_set_field(&field)?;
-    window.set_panel(game_field)?;
+
+    let empty_panel = EmptyPanel::new(&window)?;
+    let mut vribbon = Ribbon::new(&window, RibbonOrientation::Vertical)?;
+    vribbon.add_panel(empty_panel)?;
+    vribbon.add_panel(game_field)?;
+
+    window.set_panel(vribbon)?;
 
     window.run(move |event, proxy| match event {
         Event::WindowEvent {
