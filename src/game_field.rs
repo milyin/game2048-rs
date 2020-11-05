@@ -16,7 +16,6 @@ use bindings::{
     windows::ui::Color, windows::ui::ColorHelper, windows::ui::Colors,
 };
 use model::field::{Field, Origin};
-use winit::event_loop::EventLoopProxy;
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
@@ -24,6 +23,7 @@ const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 use crate::game_window::{GameWindow, Panel};
 
 pub struct GameField {
+    id: usize,
     compositor: Compositor,
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
@@ -36,6 +36,9 @@ pub struct GameField {
 }
 
 impl Panel for GameField {
+    fn id(&self) -> usize {
+        self.id
+    }
     fn visual(&self) -> ContainerVisual {
         self.root.clone()
     }
@@ -43,19 +46,14 @@ impl Panel for GameField {
         self.visual().set_size(self.visual().parent()?.size()?)?;
         self.scale_game_board()
     }
-
-    fn on_user_event(
-        &mut self,
-        evt: Box<dyn Any>,
-        _proxy: &EventLoopProxy<Box<dyn Any>>,
-    ) -> winrt::Result<Option<Box<dyn Any>>> {
-        match evt.downcast::<Field>() {
+    fn on_command(&mut self, command: Box<dyn Any>) -> winrt::Result<()> {
+        match command.downcast::<Field>() {
             Ok(field) => {
                 self.animate_set_field(&field)?;
-                Ok(None)
             }
-            Err(evt) => Ok(Some(evt)),
+            Err(_) => {}
         }
+        Ok(())
     }
 }
 
@@ -86,6 +84,7 @@ impl GameField {
         //let mut field = Field::from_array(array);
 
         Ok(Self {
+            id: game_window.get_next_id(),
             compositor,
             canvas_device: game_window.canvas_device().clone(),
             composition_graphics_device: game_window.composition_graphics_device().clone(),

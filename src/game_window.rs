@@ -15,20 +15,34 @@ use winit::{
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
+pub struct PanelEvent {
+    pub panel_id: usize,
+    pub command: Box<dyn Any>,
+}
+
 pub trait Panel {
+    fn id(&self) -> usize;
     fn visual(&self) -> ContainerVisual;
     fn on_resize(&mut self) -> winrt::Result<()> {
         self.visual().set_size(self.visual().parent()?.size()?)
     }
-    fn on_idle(&mut self, _proxy: &EventLoopProxy<Box<dyn Any>>) -> winrt::Result<()> {
+    fn on_idle(&mut self, _proxy: &EventLoopProxy<PanelEvent>) -> winrt::Result<()> {
         Ok(())
     }
-    fn on_user_event(
+    fn on_command(&mut self, command: Box<dyn Any>) -> winrt::Result<()> {
+        Ok(())
+    }
+    fn translate_panel_event(
         &mut self,
-        evt: Box<dyn Any>,
-        _proxy: &EventLoopProxy<Box<dyn Any>>,
-    ) -> winrt::Result<Option<Box<dyn Any>>> {
-        Ok(Some(evt))
+        evt: PanelEvent,
+        _proxy: &EventLoopProxy<PanelEvent>,
+    ) -> winrt::Result<Option<PanelEvent>> {
+        if evt.panel_id == self.id() {
+            self.on_command(evt.command);
+            Ok(None)
+        } else {
+            Ok(Some(evt))
+        }
     }
 }
 
@@ -37,27 +51,36 @@ fn to_winrt_error<T: std::fmt::Display>(e: T) -> winrt::Error {
 }
 
 pub trait SendUserEvent {
-    fn send_user_event<T: Any>(&self, event: T) -> winrt::Result<()>;
+    fn send_command_to_panel<T: Any>(&self, panel_id: usize, command: T) -> winrt::Result<()>;
 }
 
-impl SendUserEvent for EventLoopProxy<Box<dyn Any>> {
-    fn send_user_event<T: Any>(&self, event: T) -> winrt::Result<()> {
-        self.send_event(Box::new(event)).map_err(to_winrt_error)
+impl SendUserEvent for EventLoopProxy<PanelEvent> {
+    fn send_command_to_panel<T: Any>(&self, panel_id: usize, command: T) -> winrt::Result<()> {
+        self.send_event(PanelEvent {
+            panel_id,
+            command: Box::new(command),
+        })
+        .map_err(to_winrt_error)
     }
 }
 
 pub struct EmptyPanel {
+    id: usize,
     visual: ContainerVisual,
 }
 
 impl EmptyPanel {
-    pub fn new(game_window: &GameWindow) -> winrt::Result<Self> {
+    pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
         let visual = game_window.compositor().create_container_visual()?;
-        Ok(Self { visual })
+        let id = game_window.get_next_id();
+        Ok(Self { id, visual })
     }
 }
 
 impl Panel for EmptyPanel {
+    fn id(&self) -> usize {
+        self.id
+    }
     fn visual(&self) -> ContainerVisual {
         self.visual.clone()
     }
@@ -69,14 +92,15 @@ pub struct GameWindow {
     composition_graphics_device: CompositionGraphicsDevice,
     root: ContainerVisual,
     _target: DesktopWindowTarget,
-    event_loop: Option<EventLoop<Box<dyn Any>>>,
+    event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
     window: Window,
     panel: Option<Box<dyn Panel>>,
+    next_id: usize,
 }
 
 impl GameWindow {
     pub fn new() -> winrt::Result<Self> {
-        let event_loop = EventLoop::<Box<dyn Any>>::with_user_event();
+        let event_loop = EventLoop::<PanelEvent>::with_user_event();
         let compositor = Compositor::new()?;
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         let target = window.create_window_target(&compositor, false)?;
@@ -102,6 +126,7 @@ impl GameWindow {
             event_loop: Some(event_loop),
             window,
             panel: None,
+            next_id: 0,
         })
     }
     pub fn window(&mut self) -> &mut Window {
@@ -119,6 +144,11 @@ impl GameWindow {
     pub fn visual(&self) -> &ContainerVisual {
         &self.root
     }
+    pub fn get_next_id(&mut self) -> usize {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
 
     pub fn set_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
         self.visual().children()?.insert_at_top(panel.visual())?;
@@ -128,8 +158,7 @@ impl GameWindow {
 
     pub fn run<F>(mut self, mut event_handler: F)
     where
-        F: 'static
-            + FnMut(Event<'_, Box<dyn Any>>, &EventLoopProxy<Box<dyn Any>>) -> winrt::Result<()>,
+        F: 'static + FnMut(Event<'_, PanelEvent>, &EventLoopProxy<PanelEvent>) -> winrt::Result<()>,
     {
         let event_loop = self.event_loop.take().unwrap();
         let mut panel = self.panel.take().unwrap();
@@ -164,7 +193,7 @@ impl GameWindow {
                         event_handler(evt, &proxy)
                     }
                     Event::UserEvent(user_event) => {
-                        if let Some(user_event) = panel.on_user_event(user_event, &proxy)? {
+                        if let Some(user_event) = panel.translate_panel_event(user_event, &proxy)? {
                             event_handler(Event::UserEvent(user_event), &proxy)?;
                         }
                         Ok(())

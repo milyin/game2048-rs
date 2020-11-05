@@ -18,6 +18,7 @@ struct RibbonCell {
 }
 
 pub struct Ribbon {
+    id: usize,
     compositor: Compositor,
     orientation: RibbonOrientation,
     cells: Vec<RibbonCell>,
@@ -25,10 +26,11 @@ pub struct Ribbon {
 }
 
 impl Ribbon {
-    pub fn new(game_window: &GameWindow, orientation: RibbonOrientation) -> winrt::Result<Self> {
+    pub fn new(game_window: &mut GameWindow, orientation: RibbonOrientation) -> winrt::Result<Self> {
         let compositor = game_window.compositor().clone();
         let ribbon = compositor.create_container_visual()?;
         Ok(Self {
+            id: game_window.get_next_id(),
             compositor,
             orientation,
             cells: Vec::new(),
@@ -95,6 +97,9 @@ impl Ribbon {
 }
 
 impl Panel for Ribbon {
+    fn id(&self) -> usize {
+        self.id
+    }
     fn visual(&self) -> bindings::windows::ui::composition::ContainerVisual {
         self.ribbon.clone()
     }
@@ -107,22 +112,21 @@ impl Panel for Ribbon {
 
     fn on_idle(
         &mut self,
-        proxy: &winit::event_loop::EventLoopProxy<Box<dyn std::any::Any>>,
+        proxy: &winit::event_loop::EventLoopProxy<crate::game_window::PanelEvent>,
     ) -> winrt::Result<()> {
         for p in &mut self.cells {
             p.panel.on_idle(proxy)?;
         }
         Ok(())
     }
-
-    fn on_user_event(
+    fn translate_panel_event(
         &mut self,
-        evt: Box<dyn std::any::Any>,
-        proxy: &winit::event_loop::EventLoopProxy<Box<dyn std::any::Any>>,
-    ) -> winrt::Result<Option<Box<dyn std::any::Any>>> {
+        evt: crate::game_window::PanelEvent,
+        proxy: &winit::event_loop::EventLoopProxy<crate::game_window::PanelEvent>,
+    ) -> winrt::Result<Option<crate::game_window::PanelEvent>> {
         let mut evt = Some(evt);
         for p in &mut self.cells {
-            if let Some(e) = p.panel.on_user_event(evt.unwrap(), proxy)? {
+            if let Some(e) = p.panel.translate_panel_event(evt.unwrap(), proxy)? {
                 evt = Some(e);
             } else {
                 evt = None;
