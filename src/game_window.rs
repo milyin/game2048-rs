@@ -26,7 +26,7 @@ pub trait Panel {
     fn on_resize(&mut self) -> winrt::Result<()> {
         self.visual().set_size(self.visual().parent()?.size()?)
     }
-    fn on_idle(&mut self, _proxy: &EventLoopProxy<PanelEvent>) -> winrt::Result<()> {
+    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
         Ok(())
     }
     fn on_command(&mut self, command: Box<dyn Any>) -> winrt::Result<()> {
@@ -35,7 +35,7 @@ pub trait Panel {
     fn translate_panel_event(
         &mut self,
         evt: PanelEvent,
-        _proxy: &EventLoopProxy<PanelEvent>,
+        _proxy: &PanelEventProxy,
     ) -> winrt::Result<Option<PanelEvent>> {
         if evt.panel_id == self.id() {
             self.on_command(evt.command);
@@ -50,17 +50,18 @@ fn to_winrt_error<T: std::fmt::Display>(e: T) -> winrt::Error {
     winrt::Error::new(winrt::ErrorCode(0), format!("{}", e).as_str())
 }
 
-pub trait SendUserEvent {
-    fn send_command_to_panel<T: Any>(&self, panel_id: usize, command: T) -> winrt::Result<()>;
+pub struct PanelEventProxy {
+    proxy: EventLoopProxy<PanelEvent>,
 }
 
-impl SendUserEvent for EventLoopProxy<PanelEvent> {
-    fn send_command_to_panel<T: Any>(&self, panel_id: usize, command: T) -> winrt::Result<()> {
-        self.send_event(PanelEvent {
-            panel_id,
-            command: Box::new(command),
-        })
-        .map_err(to_winrt_error)
+impl PanelEventProxy {
+    pub fn send_command_to_panel<T: Any>(&self, panel_id: usize, command: T) -> winrt::Result<()> {
+        self.proxy
+            .send_event(PanelEvent {
+                panel_id,
+                command: Box::new(command),
+            })
+            .map_err(to_winrt_error)
     }
 }
 
@@ -158,12 +159,14 @@ impl GameWindow {
 
     pub fn run<F>(mut self, mut event_handler: F)
     where
-        F: 'static + FnMut(Event<'_, PanelEvent>, &EventLoopProxy<PanelEvent>) -> winrt::Result<()>,
+        F: 'static + FnMut(Event<'_, PanelEvent>, &PanelEventProxy) -> winrt::Result<()>,
     {
         let event_loop = self.event_loop.take().unwrap();
         let mut panel = self.panel.take().unwrap();
         panel.on_resize().unwrap();
-        let proxy = event_loop.create_proxy();
+        let proxy = PanelEventProxy {
+            proxy: event_loop.create_proxy(),
+        };
         event_loop.run(move |evt, _, control_flow| {
             // just to allow '?' usage
             || -> winrt::Result<()> {

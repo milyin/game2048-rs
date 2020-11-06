@@ -3,7 +3,7 @@ use bindings::windows::{
     ui::composition::{Compositor, ContainerVisual},
 };
 
-use crate::game_window::{GameWindow, Panel};
+use crate::game_window::{GameWindow, Panel, PanelEventProxy};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -26,7 +26,10 @@ pub struct Ribbon {
 }
 
 impl Ribbon {
-    pub fn new(game_window: &mut GameWindow, orientation: RibbonOrientation) -> winrt::Result<Self> {
+    pub fn new(
+        game_window: &mut GameWindow,
+        orientation: RibbonOrientation,
+    ) -> winrt::Result<Self> {
         let compositor = game_window.compositor().clone();
         let ribbon = compositor.create_container_visual()?;
         Ok(Self {
@@ -110,10 +113,7 @@ impl Panel for Ribbon {
         Ok(())
     }
 
-    fn on_idle(
-        &mut self,
-        proxy: &winit::event_loop::EventLoopProxy<crate::game_window::PanelEvent>,
-    ) -> winrt::Result<()> {
+    fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         for p in &mut self.cells {
             p.panel.on_idle(proxy)?;
         }
@@ -122,7 +122,7 @@ impl Panel for Ribbon {
     fn translate_panel_event(
         &mut self,
         evt: crate::game_window::PanelEvent,
-        proxy: &winit::event_loop::EventLoopProxy<crate::game_window::PanelEvent>,
+        proxy: &PanelEventProxy,
     ) -> winrt::Result<Option<crate::game_window::PanelEvent>> {
         let mut evt = Some(evt);
         for p in &mut self.cells {

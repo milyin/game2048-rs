@@ -12,12 +12,9 @@ use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initiali
 
 use ribbon_panel::{Ribbon, RibbonOrientation};
 use text_panel::TextPanel;
-use winit::{
-    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
-    event_loop::EventLoopProxy,
-};
+use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 
-use game_window::{EmptyPanel, GameWindow, Panel, PanelEvent, SendUserEvent};
+use game_window::{EmptyPanel, GameWindow, Panel, PanelEvent, PanelEventProxy};
 
 use model::field::Side::Right;
 use model::field::Side::Up;
@@ -28,7 +25,7 @@ fn swipe(
     panel_id: usize,
     field: &mut Field,
     side: Side,
-    proxy: &EventLoopProxy<PanelEvent>,
+    proxy: &PanelEventProxy,
 ) -> winrt::Result<()> {
     if field.can_swipe(side) {
         field.swipe(side);
@@ -56,7 +53,7 @@ fn run() -> winrt::Result<()> {
     let mut score = 0 as usize;
 
     let mut score_panel = TextPanel::new(&mut window)?;
-    score_panel.set_text(score.to_string());
+    let score_panel_handle = score_panel.handle();
     let mut vribbon = Ribbon::new(&mut window, RibbonOrientation::Vertical)?;
     vribbon.add_panel(score_panel, 1.)?;
     vribbon.add_panel(game_field, 4.)?;
@@ -74,6 +71,9 @@ fn run() -> winrt::Result<()> {
             ..
         } => {
             if input.state == ElementState::Pressed {
+                score_panel_handle
+                    .with_proxy(proxy)
+                    .set_text(score.to_string())?;
                 match input.virtual_keycode {
                     Some(VirtualKeyCode::Left) => swipe(game_field_id, &mut field, Left, proxy),
                     Some(VirtualKeyCode::Right) => swipe(game_field_id, &mut field, Right, proxy),
