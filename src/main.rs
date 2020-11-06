@@ -71,6 +71,7 @@ fn run() -> winrt::Result<()> {
             ..
         } => {
             if input.state == ElementState::Pressed {
+                score += 1;
                 score_panel_handle
                     .with_proxy(proxy)
                     .set_text(score.to_string())?;
