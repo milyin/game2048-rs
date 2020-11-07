@@ -183,6 +183,10 @@ impl GameWindow {
         Ok(())
     }
 
+    pub fn root_panel(&mut self) -> Option<&mut (dyn Panel + 'static)> {
+        self.panel.as_deref_mut()
+    }
+
     pub fn run<F>(mut self, mut event_handler: F)
     where
         F: 'static

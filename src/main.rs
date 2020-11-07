@@ -21,45 +21,40 @@ use model::field::Side::Up;
 use model::field::Side::{self, Left};
 use model::field::{Field, Side::Down};
 
-fn swipe(
-    panel_id: usize,
-    field: &mut Field,
-    side: Side,
-    root_panel: &mut dyn Panel,
-) -> winrt::Result<()> {
-    if field.can_swipe(side) {
-        field.swipe(side);
-        field.append_tile();
-        field.append_tile();
-        let _: Option<()> = request_panel(root_panel, panel_id, field.clone())?;
-        Ok(())
-    } else {
-        Ok(())
-    }
-}
-
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
     let _controller = create_dispatcher_queue_controller_for_current_thread()?;
 
+    //
+    // Construct model
+    //
+    let mut score = 0 as usize;
     let mut field = Field::new(4, 4);
     field.append_tile();
     field.append_tile();
-
+    //
+    // Construct GUI
+    //
     let mut window = GameWindow::new()?;
     window.window().set_title("2048");
-    let mut game_field = GameField::new(&mut window)?;
-    game_field.animate_set_field(&field)?;
-    let game_field_id = game_field.id();
-    let mut score = 0 as usize;
+    // Constuct panels
+    let game_field_panel = GameField::new(&mut window)?;
+    let score_panel = TextPanel::new(&mut window)?;
+    let mut ribbon_panel = Ribbon::new(&mut window, RibbonOrientation::Vertical)?;
+    // Take handles
+    let game_field_handle = game_field_panel.handle();
+    let score_handle = score_panel.handle();
+    // Join panels into tree
+    ribbon_panel.add_panel(score_panel, 1.)?;
+    ribbon_panel.add_panel(game_field_panel, 4.)?;
+    window.set_panel(ribbon_panel)?;
 
-    let mut score_panel = TextPanel::new(&mut window)?;
-    let score_panel_handle = score_panel.handle();
-    let mut vribbon = Ribbon::new(&mut window, RibbonOrientation::Vertical)?;
-    vribbon.add_panel(score_panel, 1.)?;
-    vribbon.add_panel(game_field, 4.)?;
-
-    window.set_panel(vribbon)?;
+    //
+    // Initialize GUI
+    //
+    game_field_handle
+        .at(window.root_panel().unwrap())
+        .set_field(field.clone())?;
 
     window.run(move |event, root_panel, proxy| match event {
         Event::WindowEvent {
@@ -73,22 +68,17 @@ fn run() -> winrt::Result<()> {
         } => {
             if input.state == ElementState::Pressed {
                 score += 1;
-                score_panel_handle
-                    .at(root_panel)
-                    .set_text(score.to_string())?;
-                match input.virtual_keycode {
-                    Some(VirtualKeyCode::Left) => {
-                        swipe(game_field_id, &mut field, Left, root_panel)
-                    }
-                    Some(VirtualKeyCode::Right) => {
-                        swipe(game_field_id, &mut field, Right, root_panel)
-                    }
-                    Some(VirtualKeyCode::Up) => swipe(game_field_id, &mut field, Up, root_panel),
-                    Some(VirtualKeyCode::Down) => {
-                        swipe(game_field_id, &mut field, Down, root_panel)
-                    }
-                    _ => Ok(()),
+                score_handle.at(root_panel).set_text(score.to_string())?;
+                if let Some(side) = match input.virtual_keycode {
+                    Some(VirtualKeyCode::Left) => Some(Left),
+                    Some(VirtualKeyCode::Right) => Some(Right),
+                    Some(VirtualKeyCode::Up) => Some(Up),
+                    Some(VirtualKeyCode::Down) => Some(Down),
+                    _ => None,
+                } {
+                    game_field_handle.at(root_panel).swipe(&mut field, side)?;
                 }
+                Ok(())
             } else {
                 Ok(())
             }

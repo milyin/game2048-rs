@@ -45,7 +45,7 @@ enum TextPanelCommand {
 
 impl<'a> TextPanelProxy<'a> {
     pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> winrt::Result<()> {
-        let resp: Option<()> = request_panel(
+        let _: Option<()> = request_panel(
             self.root_panel,
             self.handle.id,
             TextPanelCommand::SetText(text.into()),

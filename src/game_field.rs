@@ -15,12 +15,12 @@ use bindings::{
     windows::ui::composition::ContainerVisual, windows::ui::composition::Visual,
     windows::ui::Color, windows::ui::ColorHelper, windows::ui::Colors,
 };
-use model::field::{Field, Origin};
+use model::field::{Field, Origin, Side};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::{GameWindow, Panel};
+use crate::game_window::{request_panel, GameWindow, Panel};
 
 pub struct GameField {
     id: usize,
@@ -33,6 +33,42 @@ pub struct GameField {
     removed_tiles: Vec<Visual>,
     tile_shapes: HashMap<u32, CompositionShape>,
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
+}
+
+#[derive(Copy, Clone)]
+pub struct GameFieldHandle {
+    id: usize,
+}
+
+pub struct GameFieldProxy<'a> {
+    handle: GameFieldHandle,
+    root_panel: &'a mut dyn Panel,
+}
+
+impl<'a> GameFieldProxy<'a> {
+    pub fn set_field(&mut self, field: Field) -> winrt::Result<()> {
+        let _: Option<()> = request_panel(self.root_panel, self.handle.id, field)?;
+        Ok(())
+    }
+    pub fn swipe(&mut self, field: &mut Field, side: Side) -> winrt::Result<()> {
+        if field.can_swipe(side) {
+            field.swipe(side);
+            field.append_tile();
+            field.append_tile();
+            self.set_field(field.clone())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl GameFieldHandle {
+    pub fn at<'a>(&self, root_panel: &'a mut Panel) -> GameFieldProxy<'a> {
+        GameFieldProxy {
+            handle: self.clone(),
+            root_panel,
+        }
+    }
 }
 
 impl Panel for GameField {
@@ -95,6 +131,10 @@ impl GameField {
             tile_shapes: HashMap::new(),
             tile_text_layouts: HashMap::new(),
         })
+    }
+
+    pub fn handle(&self) -> GameFieldHandle {
+        GameFieldHandle { id: self.id }
     }
 
     /*    pub fn swipe(&mut self, side: Side) -> winrt::Result<()> {
@@ -370,7 +410,7 @@ impl GameField {
         Ok(())
     }
 
-    pub fn animate_set_field(&mut self, field: &Field) -> winrt::Result<()> {
+    fn animate_set_field(&mut self, field: &Field) -> winrt::Result<()> {
         self.game_board_visual.set_size(Vector2 {
             x: field.width() as f32 * TILE_SIZE.x,
             y: field.height() as f32 * TILE_SIZE.y,
