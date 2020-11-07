@@ -46,14 +46,14 @@ impl Panel for GameField {
         self.visual().set_size(self.visual().parent()?.size()?)?;
         self.scale_game_board()
     }
-    fn on_command(&mut self, command: Box<dyn Any>) -> winrt::Result<()> {
-        match command.downcast::<Field>() {
+    fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
+        match request.downcast::<Field>() {
             Ok(field) => {
                 self.animate_set_field(&field)?;
             }
             Err(_) => {}
         }
-        Ok(())
+        Ok(Box::new(()))
     }
 }
 

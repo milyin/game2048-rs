@@ -14,7 +14,7 @@ use ribbon_panel::{Ribbon, RibbonOrientation};
 use text_panel::TextPanel;
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 
-use game_window::{EmptyPanel, GameWindow, Panel, PanelEvent, PanelEventProxy};
+use game_window::{request_panel, EmptyPanel, GameWindow, Panel, PanelEvent, PanelEventProxy};
 
 use model::field::Side::Right;
 use model::field::Side::Up;
@@ -25,13 +25,14 @@ fn swipe(
     panel_id: usize,
     field: &mut Field,
     side: Side,
-    proxy: &PanelEventProxy,
+    root_panel: &mut dyn Panel,
 ) -> winrt::Result<()> {
     if field.can_swipe(side) {
         field.swipe(side);
         field.append_tile();
         field.append_tile();
-        proxy.send_command_to_panel(panel_id, field.clone())
+        let _: Option<()> = request_panel(root_panel, panel_id, field.clone())?;
+        Ok(())
     } else {
         Ok(())
     }
@@ -60,7 +61,7 @@ fn run() -> winrt::Result<()> {
 
     window.set_panel(vribbon)?;
 
-    window.run(move |event, proxy| match event {
+    window.run(move |event, root_panel, proxy| match event {
         Event::WindowEvent {
             event:
                 WindowEvent::KeyboardInput {
@@ -73,13 +74,19 @@ fn run() -> winrt::Result<()> {
             if input.state == ElementState::Pressed {
                 score += 1;
                 score_panel_handle
-                    .with_proxy(proxy)
+                    .at(root_panel)
                     .set_text(score.to_string())?;
                 match input.virtual_keycode {
-                    Some(VirtualKeyCode::Left) => swipe(game_field_id, &mut field, Left, proxy),
-                    Some(VirtualKeyCode::Right) => swipe(game_field_id, &mut field, Right, proxy),
-                    Some(VirtualKeyCode::Up) => swipe(game_field_id, &mut field, Up, proxy),
-                    Some(VirtualKeyCode::Down) => swipe(game_field_id, &mut field, Down, proxy),
+                    Some(VirtualKeyCode::Left) => {
+                        swipe(game_field_id, &mut field, Left, root_panel)
+                    }
+                    Some(VirtualKeyCode::Right) => {
+                        swipe(game_field_id, &mut field, Right, root_panel)
+                    }
+                    Some(VirtualKeyCode::Up) => swipe(game_field_id, &mut field, Up, root_panel),
+                    Some(VirtualKeyCode::Down) => {
+                        swipe(game_field_id, &mut field, Down, root_panel)
+                    }
                     _ => Ok(()),
                 }
             } else {

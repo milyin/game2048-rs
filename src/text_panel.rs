@@ -18,7 +18,7 @@ use bindings::{
     },
 };
 
-use crate::game_window::{GameWindow, Panel, PanelEventProxy};
+use crate::game_window::{request_panel, GameWindow, Panel, PanelEventProxy};
 
 #[derive(Copy, Clone)]
 pub struct TextPanelHandle {
@@ -26,17 +26,17 @@ pub struct TextPanelHandle {
 }
 
 impl TextPanelHandle {
-    pub fn with_proxy<'a>(&self, proxy: &'a PanelEventProxy) -> TextPanelProxy<'a> {
+    pub fn at<'a>(&self, root_panel: &'a mut Panel) -> TextPanelProxy<'a> {
         TextPanelProxy {
             handle: self.clone(),
-            proxy,
+            root_panel,
         }
     }
 }
 
 pub struct TextPanelProxy<'a> {
     handle: TextPanelHandle,
-    proxy: &'a PanelEventProxy,
+    root_panel: &'a mut dyn Panel,
 }
 
 enum TextPanelCommand {
@@ -44,9 +44,13 @@ enum TextPanelCommand {
 }
 
 impl<'a> TextPanelProxy<'a> {
-    pub fn set_text<S: Into<Cow<'static, str>>>(&self, text: S) -> winrt::Result<()> {
-        self.proxy
-            .send_command_to_panel(self.handle.id, TextPanelCommand::SetText(text.into()))
+    pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> winrt::Result<()> {
+        let resp: Option<()> = request_panel(
+            self.root_panel,
+            self.handle.id,
+            TextPanelCommand::SetText(text.into()),
+        )?;
+        Ok(())
     }
 }
 
@@ -140,13 +144,13 @@ impl Panel for TextPanel {
         self.visual.clone().into()
     }
 
-    fn on_command(&mut self, command: Box<dyn Any>) -> winrt::Result<()> {
-        if let Ok(command) = command.downcast::<TextPanelCommand>() {
+    fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
+        if let Ok(command) = request.downcast::<TextPanelCommand>() {
             match *command {
                 TextPanelCommand::SetText(text) => self.set_text(text)?,
             }
         }
-        Ok(())
+        Ok(Box::new(()))
     }
 
     fn on_resize(&mut self) -> winrt::Result<()> {

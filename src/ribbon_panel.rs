@@ -3,7 +3,7 @@ use bindings::windows::{
     ui::composition::{Compositor, ContainerVisual},
 };
 
-use crate::game_window::{GameWindow, Panel, PanelEventProxy};
+use crate::game_window::{GameWindow, Panel, PanelEventProxy, PanelMessage};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -119,20 +119,14 @@ impl Panel for Ribbon {
         }
         Ok(())
     }
-    fn translate_panel_event(
-        &mut self,
-        evt: crate::game_window::PanelEvent,
-        proxy: &PanelEventProxy,
-    ) -> winrt::Result<Option<crate::game_window::PanelEvent>> {
-        let mut evt = Some(evt);
+    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
+        let mut msg = msg;
         for p in &mut self.cells {
-            if let Some(e) = p.panel.translate_panel_event(evt.unwrap(), proxy)? {
-                evt = Some(e);
-            } else {
-                evt = None;
+            msg = p.panel.translate_message(msg)?;
+            if msg.response.is_some() {
                 break;
             }
         }
-        Ok(evt)
+        Ok(msg)
     }
 }
