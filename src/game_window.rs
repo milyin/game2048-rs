@@ -37,7 +37,7 @@ pub trait Panel {
     fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
         Ok(Box::new(()))
     }
-    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
+    fn call_on_request(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
         let mut msg = msg;
         if msg.panel_id == self.id() {
             if let Some(request) = msg.request.take() {
@@ -45,6 +45,9 @@ pub trait Panel {
             }
         }
         Ok(msg)
+    }
+    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
+        self.call_on_request(msg)
     }
 }
 
@@ -72,7 +75,7 @@ pub fn request_panel<RESP: Any>(
     }
 }
 
-fn to_winrt_error<T: std::fmt::Display>(e: T) -> winrt::Error {
+pub fn winrt_error<T: std::fmt::Display>(e: T) -> winrt::Error {
     winrt::Error::new(winrt::ErrorCode(0), format!("{}", e).as_str())
 }
 
@@ -87,7 +90,7 @@ impl PanelEventProxy {
                 panel_id,
                 data: Box::new(command),
             })
-            .map_err(to_winrt_error)
+            .map_err(winrt_error)
     }
 }
 

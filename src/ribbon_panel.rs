@@ -120,7 +120,7 @@ impl Panel for Ribbon {
         Ok(())
     }
     fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        let mut msg = msg;
+        let mut msg = self.call_on_request(msg)?;
         for p in &mut self.cells {
             msg = p.panel.translate_message(msg)?;
             if msg.response.is_some() {

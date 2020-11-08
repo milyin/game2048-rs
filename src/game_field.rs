@@ -85,7 +85,7 @@ impl Panel for GameField {
     fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
         match request.downcast::<Field>() {
             Ok(field) => {
-                self.animate_set_field(&field)?;
+                self.set_field(&field)?;
             }
             Err(_) => {}
         }
@@ -410,7 +410,7 @@ impl GameField {
         Ok(())
     }
 
-    fn animate_set_field(&mut self, field: &Field) -> winrt::Result<()> {
+    pub fn set_field(&mut self, field: &Field) -> winrt::Result<()> {
         self.game_board_visual.set_size(Vector2 {
             x: field.width() as f32 * TILE_SIZE.x,
             y: field.height() as f32 * TILE_SIZE.y,
