@@ -22,6 +22,12 @@ const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
 use crate::game_window::{request_panel, GameWindow, Panel};
 
+pub enum GameFieldCommand {
+    Reset,
+    Swipe(Side),
+    Undo,
+}
+
 pub struct GameField {
     id: usize,
     compositor: Compositor,
@@ -33,6 +39,7 @@ pub struct GameField {
     removed_tiles: Vec<Visual>,
     tile_shapes: HashMap<u32, CompositionShape>,
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
+    field: Field,
 }
 
 #[derive(Copy, Clone)]
@@ -46,19 +53,22 @@ pub struct GameFieldProxy<'a> {
 }
 
 impl<'a> GameFieldProxy<'a> {
-    pub fn set_field(&mut self, field: Field) -> winrt::Result<()> {
-        let _: Option<()> = request_panel(self.root_panel, self.handle.id, field)?;
+    pub fn reset(&mut self) -> winrt::Result<()> {
+        let _: Option<()> =
+            request_panel(self.root_panel, self.handle.id, GameFieldCommand::Reset)?;
         Ok(())
     }
-    pub fn swipe(&mut self, field: &mut Field, side: Side) -> winrt::Result<()> {
-        if field.can_swipe(side) {
-            field.swipe(side);
-            field.append_tile();
-            field.append_tile();
-            self.set_field(field.clone())
-        } else {
-            Ok(())
-        }
+    pub fn swipe(&mut self, side: Side) -> winrt::Result<()> {
+        let _: Option<()> = request_panel(
+            self.root_panel,
+            self.handle.id,
+            GameFieldCommand::Swipe(side),
+        )?;
+        Ok(())
+    }
+    pub fn undo(&mut self) -> winrt::Result<()> {
+        let _: Option<()> = request_panel(self.root_panel, self.handle.id, GameFieldCommand::Undo)?;
+        Ok(())
     }
 }
 
@@ -83,11 +93,14 @@ impl Panel for GameField {
         self.scale_game_board()
     }
     fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
-        match request.downcast::<Field>() {
-            Ok(field) => {
-                self.set_field(&field)?;
+        if let Ok(command) = request.downcast::<GameFieldCommand>() {
+            match *command {
+                GameFieldCommand::Reset => {}
+                GameFieldCommand::Swipe(side) => {
+                    self.swipe(side)?;
+                }
+                GameFieldCommand::Undo => {}
             }
-            Err(_) => {}
         }
         Ok(Box::new(()))
     }
@@ -119,7 +132,11 @@ impl GameField {
         //    Array2::from_shape_vec((4, 3), vec![2, 4, 4, 2, 2, 4, 0, 2, 2, 0, 0, 2]).unwrap();
         //let mut field = Field::from_array(array);
 
-        Ok(Self {
+        let mut field = Field::new(4, 4);
+        field.append_tile();
+        field.append_tile();
+
+        let mut game_field = Self {
             id: game_window.get_next_id(),
             compositor,
             canvas_device: game_window.canvas_device().clone(),
@@ -130,23 +147,25 @@ impl GameField {
             removed_tiles: Vec::new(),
             tile_shapes: HashMap::new(),
             tile_text_layouts: HashMap::new(),
-        })
+            field,
+        };
+        game_field.animate_field()?; // TODO: separate 'new' and 'OnInit'
+        Ok(game_field)
     }
 
     pub fn handle(&self) -> GameFieldHandle {
         GameFieldHandle { id: self.id }
     }
 
-    /*    pub fn swipe(&mut self, side: Side) -> winrt::Result<()> {
-            if self.field.can_swipe(side) {
-                self.field.swipe(side);
-                self.field.append_tile();
-                self.field.append_tile();
-                self.animate_set_field()?;
-            }
-            Ok(())
+    pub fn swipe(&mut self, side: Side) -> winrt::Result<()> {
+        if self.field.can_swipe(side) {
+            self.field.swipe(side);
+            self.field.append_tile();
+            self.field.append_tile();
+            self.animate_field()?;
         }
-    */
+        Ok(())
+    }
 
     fn scale_game_board(&mut self) -> winrt::Result<()> {
         let board_size = self.game_board_visual.size()?;
@@ -410,18 +429,18 @@ impl GameField {
         Ok(())
     }
 
-    pub fn set_field(&mut self, field: &Field) -> winrt::Result<()> {
+    fn animate_field(&mut self) -> winrt::Result<()> {
         self.game_board_visual.set_size(Vector2 {
-            x: field.width() as f32 * TILE_SIZE.x,
-            y: field.height() as f32 * TILE_SIZE.y,
+            x: self.field.width() as f32 * TILE_SIZE.x,
+            y: self.field.height() as f32 * TILE_SIZE.y,
         })?;
         self.scale_game_board()?;
 
         self.garbage_collect_tiles()?;
         let mut new_board_tiles = HashMap::new();
-        for x in 0..field.width() {
-            for y in 0..field.height() {
-                if let Some(tile) = field.get(x, y) {
+        for x in 0..self.field.width() {
+            for y in 0..self.field.height() {
+                if let Some(tile) = self.field.get(x, y) {
                     let n = tile.get_n();
                     let visual = match tile.get_origin() {
                         Origin::Appear => self.create_tile_visual(x, y, n),

@@ -31,9 +31,6 @@ fn run() -> winrt::Result<()> {
     // Construct model
     //
     let mut score = 0 as usize;
-    let mut field = Field::new(4, 4);
-    field.append_tile();
-    field.append_tile();
     //
     // Construct GUI
     //
@@ -51,7 +48,6 @@ fn run() -> winrt::Result<()> {
     //
     // Initialize panels
     //
-    game_field_panel.set_field(&field)?;
     button_text_panel.set_text("⮌")?;
 
     // Take handles
@@ -86,7 +82,7 @@ fn run() -> winrt::Result<()> {
                     Some(VirtualKeyCode::Down) => Some(Down),
                     _ => None,
                 } {
-                    game_field_handle.at(root_panel).swipe(&mut field, side)?;
+                    game_field_handle.at(root_panel).swipe(side)?;
                 }
                 Ok(())
             } else {
