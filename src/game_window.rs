@@ -9,7 +9,8 @@ use bindings::windows::ui::composition::CompositionGraphicsDevice;
 use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
 use winit::{
-    event::{Event, WindowEvent},
+    dpi::PhysicalPosition,
+    event::{ElementState, Event, MouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -29,7 +30,7 @@ pub trait Panel {
     fn id(&self) -> usize;
     fn visual(&self) -> ContainerVisual;
     fn on_resize(&mut self) -> winrt::Result<()> {
-        self.visual().set_size(self.visual().parent()?.size()?)
+        self.on_resize_default()
     }
     fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
         Ok(())
@@ -37,7 +38,22 @@ pub trait Panel {
     fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
         Ok(Box::new(()))
     }
-    fn call_on_request(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
+    fn on_mouse_input(
+        &mut self,
+        position: Vector2,
+        button: MouseButton,
+        state: ElementState,
+    ) -> winrt::Result<()> {
+        dbg!(position);
+        Ok(())
+    }
+    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
+        self.translate_message_default(msg)
+    }
+    //
+    // default implementations to reuse in impls
+    //
+    fn translate_message_default(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
         let mut msg = msg;
         if msg.panel_id == self.id() {
             if let Some(request) = msg.request.take() {
@@ -46,8 +62,8 @@ pub trait Panel {
         }
         Ok(msg)
     }
-    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        self.call_on_request(msg)
+    fn on_resize_default(&mut self) -> winrt::Result<()> {
+        self.visual().set_size(self.visual().parent()?.size()?)
     }
 }
 
@@ -201,6 +217,7 @@ impl GameWindow {
         let proxy = PanelEventProxy {
             proxy: event_loop.create_proxy(),
         };
+        let mut cursor_position: PhysicalPosition<f64> = (0., 0.).into();
         event_loop.run(move |evt, _, control_flow| {
             // just to allow '?' usage
             || -> winrt::Result<()> {
@@ -224,6 +241,25 @@ impl GameWindow {
                         self.root.set_size(&window_size)?;
                         panel.on_resize()?;
                         event_handler(evt, &mut *panel, &proxy)
+                    }
+                    Event::WindowEvent {
+                        event: WindowEvent::CursorMoved { position, .. },
+                        ..
+                    } => {
+                        cursor_position = position;
+                        // TODO: on mouse move handle here
+                        Ok(())
+                    }
+                    Event::WindowEvent {
+                        event: WindowEvent::MouseInput { state, button, .. },
+                        ..
+                    } => {
+                        // TODO: check for scaled modes
+                        let position = Vector2 {
+                            x: cursor_position.x as f32, // - window_position.x as f32,
+                            y: cursor_position.y as f32, // - window_position.y as f32,
+                        };
+                        panel.on_mouse_input(position, button, state)
                     }
                     Event::MainEventsCleared => {
                         panel.on_idle(&proxy)?;

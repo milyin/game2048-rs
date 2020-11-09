@@ -63,7 +63,7 @@ impl Panel for ButtonPanel {
     }
 
     fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        let msg = self.call_on_request(msg)?;
+        let msg = self.translate_message_default(msg)?;
         self.panel()?.translate_message(msg)
     }
 }
