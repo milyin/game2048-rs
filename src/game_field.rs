@@ -99,7 +99,10 @@ impl Panel for GameField {
                 GameFieldCommand::Swipe(side) => {
                     self.swipe(side)?;
                 }
-                GameFieldCommand::Undo => {}
+                GameFieldCommand::Undo => {
+                    self.field.undo();
+                    self.animate_field()?;
+                }
             }
         }
         Ok(Box::new(()))

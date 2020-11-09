@@ -40,11 +40,11 @@ pub trait Panel {
     }
     fn on_mouse_input(
         &mut self,
-        position: Vector2,
-        button: MouseButton,
-        state: ElementState,
+        _position: Vector2,
+        _button: MouseButton,
+        _state: ElementState,
+        _proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
-        dbg!(position);
         Ok(())
     }
     fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
@@ -259,7 +259,7 @@ impl GameWindow {
                             x: cursor_position.x as f32, // - window_position.x as f32,
                             y: cursor_position.y as f32, // - window_position.y as f32,
                         };
-                        panel.on_mouse_input(position, button, state)
+                        panel.on_mouse_input(position, button, state, &proxy)
                     }
                     Event::MainEventsCleared => {
                         panel.on_idle(&proxy)?;

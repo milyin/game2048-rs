@@ -1,6 +1,14 @@
 use bindings::windows::ui::composition::ContainerVisual;
+use winit::event::{ElementState, MouseButton};
 
-use crate::game_window::{winrt_error, GameWindow, Panel, PanelEventProxy, PanelMessage};
+use crate::game_window::{
+    winrt_error, GameWindow, Panel, PanelEvent, PanelEventProxy, PanelMessage,
+};
+
+#[derive(PartialEq)]
+pub enum ButtonPanelEvent {
+    Pressed,
+}
 
 pub struct ButtonPanel {
     id: usize,
@@ -10,6 +18,16 @@ pub struct ButtonPanel {
 
 pub struct ButtonPanelHandle {
     id: usize,
+}
+
+impl ButtonPanelHandle {
+    pub fn event(&self, event: PanelEvent) -> Option<ButtonPanelEvent> {
+        if event.panel_id == self.id {
+            event.data.downcast::<ButtonPanelEvent>().ok().map(|e| *e)
+        } else {
+            None
+        }
+    }
 }
 
 pub struct ButtonPanelProxy<'a> {
@@ -65,5 +83,25 @@ impl Panel for ButtonPanel {
     fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
         let msg = self.translate_message_default(msg)?;
         self.panel()?.translate_message(msg)
+    }
+
+    fn on_request(
+        &mut self,
+        request: Box<dyn std::any::Any>,
+    ) -> winrt::Result<Box<dyn std::any::Any>> {
+        Ok(Box::new(()))
+    }
+
+    fn on_mouse_input(
+        &mut self,
+        _position: bindings::windows::foundation::numerics::Vector2,
+        button: MouseButton,
+        state: ElementState,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        if button == MouseButton::Left && state == ElementState::Pressed {
+            proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
+        }
+        Ok(())
     }
 }

@@ -8,7 +8,7 @@ mod ribbon_panel;
 mod text_panel;
 mod window_target;
 
-use button_panel::ButtonPanel;
+use button_panel::{ButtonPanel, ButtonPanelEvent};
 use game_field::GameField;
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 
@@ -39,8 +39,8 @@ fn run() -> winrt::Result<()> {
     // Constuct panels
     let mut game_field_panel = GameField::new(&mut window)?;
     let score_panel = TextPanel::new(&mut window)?;
-    let mut button_panel = ButtonPanel::new(&mut window)?;
-    let mut button_text_panel = TextPanel::new(&mut window)?;
+    let mut undo_button_panel = ButtonPanel::new(&mut window)?;
+    let mut undo_button_text_panel = TextPanel::new(&mut window)?;
     let empty_panel = EmptyPanel::new(&mut window)?;
     let mut vribbon_panel = Ribbon::new(&mut window, RibbonOrientation::Vertical)?;
     let mut hribbon_panel = Ribbon::new(&mut window, RibbonOrientation::Horizontal)?;
@@ -48,14 +48,15 @@ fn run() -> winrt::Result<()> {
     //
     // Initialize panels
     //
-    button_text_panel.set_text("⮌")?;
+    undo_button_text_panel.set_text("⮌")?;
 
     // Take handles
     let game_field_handle = game_field_panel.handle();
     let score_handle = score_panel.handle();
+    let undo_button_handle = undo_button_panel.handle();
     // Join panels into tree
-    button_panel.add_panel(button_text_panel)?;
-    hribbon_panel.add_panel(button_panel, 1.)?;
+    undo_button_panel.add_panel(undo_button_text_panel)?;
+    hribbon_panel.add_panel(undo_button_panel, 1.)?;
     hribbon_panel.add_panel(score_panel, 1.)?;
     hribbon_panel.add_panel(empty_panel, 1.)?;
     vribbon_panel.add_panel(hribbon_panel, 1.)?;
@@ -83,11 +84,19 @@ fn run() -> winrt::Result<()> {
                     _ => None,
                 } {
                     game_field_handle.at(root_panel).swipe(side)?;
+                } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
+                    game_field_handle.at(root_panel).undo()?;
                 }
                 Ok(())
             } else {
                 Ok(())
             }
+        }
+        Event::UserEvent(e) => {
+            if undo_button_handle.event(e) == Some(ButtonPanelEvent::Pressed) {
+                game_field_handle.at(root_panel).undo()?;
+            }
+            Ok(())
         }
         _ => Ok(()),
     });

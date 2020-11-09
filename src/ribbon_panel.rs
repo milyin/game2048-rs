@@ -129,4 +129,26 @@ impl Panel for Ribbon {
         }
         Ok(msg)
     }
+
+    fn on_mouse_input(
+        &mut self,
+        position: Vector2,
+        button: winit::event::MouseButton,
+        state: winit::event::ElementState,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        for p in &mut self.cells {
+            let offset = p.panel.visual().offset()?;
+            let size = p.panel.visual().size()?;
+            let position = Vector2 {
+                x: position.x - offset.x,
+                y: position.y - offset.y,
+            };
+            if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
+                p.panel.on_mouse_input(position, button, state, proxy)?;
+                break;
+            }
+        }
+        Ok(())
+    }
 }
