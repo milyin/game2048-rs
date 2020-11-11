@@ -16,12 +16,12 @@ use ribbon_panel::{Ribbon, RibbonOrientation};
 use text_panel::TextPanel;
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 
-use game_window::{request_panel, EmptyPanel, GameWindow, Panel, PanelEvent, PanelEventProxy};
+use game_window::{EmptyPanel, GameWindow, PanelHandle};
 
+use model::field::Side::Down;
+use model::field::Side::Left;
 use model::field::Side::Right;
 use model::field::Side::Up;
-use model::field::Side::{self, Left};
-use model::field::{Field, Side::Down};
 
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
@@ -37,7 +37,7 @@ fn run() -> winrt::Result<()> {
     let mut window = GameWindow::new()?;
     window.window().set_title("2048");
     // Constuct panels
-    let mut game_field_panel = GameField::new(&mut window)?;
+    let game_field_panel = GameField::new(&mut window)?;
     let score_panel = TextPanel::new(&mut window)?;
     let mut undo_button_panel = ButtonPanel::new(&mut window)?;
     let mut undo_button_text_panel = TextPanel::new(&mut window)?;
@@ -63,7 +63,7 @@ fn run() -> winrt::Result<()> {
     vribbon_panel.add_panel(game_field_panel, 4.)?;
     window.set_panel(vribbon_panel)?;
 
-    window.run(move |event, root_panel, proxy| match event {
+    window.run(move |event, root_panel, _| match event {
         Event::WindowEvent {
             event:
                 WindowEvent::KeyboardInput {
@@ -75,7 +75,8 @@ fn run() -> winrt::Result<()> {
         } => {
             if input.state == ElementState::Pressed {
                 score += 1;
-                score_handle.at(root_panel).set_text(score.to_string())?;
+                //score_handle.at(root_panel).set_text(score.to_string())?;
+                score_handle.at(root_panel)?.set_text(score.to_string())?;
                 if let Some(side) = match input.virtual_keycode {
                     Some(VirtualKeyCode::Left) => Some(Left),
                     Some(VirtualKeyCode::Right) => Some(Right),
@@ -83,9 +84,9 @@ fn run() -> winrt::Result<()> {
                     Some(VirtualKeyCode::Down) => Some(Down),
                     _ => None,
                 } {
-                    game_field_handle.at(root_panel).swipe(side)?;
+                    game_field_handle.at(root_panel)?.swipe(side)?;
                 } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
-                    game_field_handle.at(root_panel).undo()?;
+                    game_field_handle.at(root_panel)?.undo()?;
                 }
                 Ok(())
             } else {
@@ -94,7 +95,7 @@ fn run() -> winrt::Result<()> {
         }
         Event::UserEvent(e) => {
             if undo_button_handle.event(e) == Some(ButtonPanelEvent::Pressed) {
-                game_field_handle.at(root_panel).undo()?;
+                game_field_handle.at(root_panel)?.undo()?;
             }
             Ok(())
         }

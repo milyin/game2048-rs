@@ -1,4 +1,4 @@
-use std::{any::Any, borrow::Cow};
+use std::borrow::Cow;
 
 use bindings::{
     microsoft::graphics::canvas::{
@@ -18,39 +18,16 @@ use bindings::{
     },
 };
 
-use crate::game_window::{request_panel, GameWindow, Panel, PanelEventProxy};
+use crate::game_window::{GameWindow, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(Copy, Clone)]
 pub struct TextPanelHandle {
     id: usize,
 }
 
-impl TextPanelHandle {
-    pub fn at<'a>(&self, root_panel: &'a mut Panel) -> TextPanelProxy<'a> {
-        TextPanelProxy {
-            handle: self.clone(),
-            root_panel,
-        }
-    }
-}
-
-pub struct TextPanelProxy<'a> {
-    handle: TextPanelHandle,
-    root_panel: &'a mut dyn Panel,
-}
-
-enum TextPanelCommand {
-    SetText(Cow<'static, str>),
-}
-
-impl<'a> TextPanelProxy<'a> {
-    pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> winrt::Result<()> {
-        let _: Option<()> = request_panel(
-            self.root_panel,
-            self.handle.id,
-            TextPanelCommand::SetText(text.into()),
-        )?;
-        Ok(())
+impl PanelHandle<TextPanel> for TextPanelHandle {
+    fn id(&self) -> usize {
+        self.id
     }
 }
 
@@ -144,17 +121,8 @@ impl Panel for TextPanel {
         self.visual.clone().into()
     }
 
-    fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
-        if let Ok(command) = request.downcast::<TextPanelCommand>() {
-            match *command {
-                TextPanelCommand::SetText(text) => self.set_text(text)?,
-            }
-        }
-        Ok(Box::new(()))
-    }
-
     fn on_resize(&mut self) -> winrt::Result<()> {
-        self.visual.set_size(self.visual.parent()?.size()?);
+        self.visual.set_size(self.visual.parent()?.size()?)?;
         self.resize_surface()?;
         self.redraw_text()?;
         Ok(())
@@ -162,5 +130,8 @@ impl Panel for TextPanel {
 
     fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
         Ok(())
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }

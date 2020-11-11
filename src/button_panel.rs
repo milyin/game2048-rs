@@ -1,9 +1,9 @@
+use std::any::Any;
+
 use bindings::windows::ui::composition::ContainerVisual;
 use winit::event::{ElementState, MouseButton};
 
-use crate::game_window::{
-    winrt_error, GameWindow, Panel, PanelEvent, PanelEventProxy, PanelMessage,
-};
+use crate::game_window::{winrt_error, GameWindow, Panel, PanelEvent, PanelEventProxy};
 
 #[derive(PartialEq)]
 pub enum ButtonPanelEvent {
@@ -28,11 +28,6 @@ impl ButtonPanelHandle {
             None
         }
     }
-}
-
-pub struct ButtonPanelProxy<'a> {
-    handle: ButtonPanelHandle,
-    root_panel: &'a mut dyn Panel,
 }
 
 impl ButtonPanel {
@@ -80,18 +75,6 @@ impl Panel for ButtonPanel {
         self.panel()?.on_idle(proxy)
     }
 
-    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        let msg = self.translate_message_default(msg)?;
-        self.panel()?.translate_message(msg)
-    }
-
-    fn on_request(
-        &mut self,
-        request: Box<dyn std::any::Any>,
-    ) -> winrt::Result<Box<dyn std::any::Any>> {
-        Ok(Box::new(()))
-    }
-
     fn on_mouse_input(
         &mut self,
         _position: bindings::windows::foundation::numerics::Vector2,
@@ -103,5 +86,19 @@ impl Panel for ButtonPanel {
             proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
         }
         Ok(())
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+        if id == self.id() {
+            return Some(self.as_any_mut());
+        } else if let Some(p) = self.panel.as_mut() {
+            p.get_panel(id)
+        } else {
+            None
+        }
     }
 }

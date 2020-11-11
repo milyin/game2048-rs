@@ -20,23 +20,18 @@ pub struct PanelEvent {
     pub panel_id: usize,
     pub data: Box<dyn Any>,
 }
-pub struct PanelMessage {
-    pub panel_id: usize,
-    pub request: Option<Box<dyn Any>>,
-    pub response: Option<Box<dyn Any>>,
-}
-
 pub trait Panel {
     fn id(&self) -> usize;
     fn visual(&self) -> ContainerVisual;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+        self.get_panel_default(id)
+    }
     fn on_resize(&mut self) -> winrt::Result<()> {
         self.on_resize_default()
     }
     fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
         Ok(())
-    }
-    fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
-        Ok(Box::new(()))
     }
     fn on_mouse_input(
         &mut self,
@@ -47,47 +42,27 @@ pub trait Panel {
     ) -> winrt::Result<()> {
         Ok(())
     }
-    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        self.translate_message_default(msg)
-    }
-    //
-    // default implementations to reuse in impls
-    //
-    fn translate_message_default(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        let mut msg = msg;
-        if msg.panel_id == self.id() {
-            if let Some(request) = msg.request.take() {
-                msg.response = Some(self.on_request(request)?);
-            }
-        }
-        Ok(msg)
-    }
     fn on_resize_default(&mut self) -> winrt::Result<()> {
         self.visual().set_size(self.visual().parent()?.size()?)
     }
+    fn get_panel_default(&mut self, id: usize) -> Option<&mut dyn Any> {
+        if self.id() == id {
+            Some(self.as_any_mut())
+        } else {
+            None
+        }
+    }
 }
 
-pub fn request_panel<RESP: Any>(
-    root_panel: &mut dyn Panel,
-    panel_id: usize,
-    request: impl Any,
-) -> winrt::Result<Option<RESP>> {
-    let request = Some(Box::new(request) as Box<dyn Any>);
-    let response = None;
-    let mut msg = PanelMessage {
-        panel_id,
-        request,
-        response,
-    };
-    msg = root_panel.translate_message(msg)?;
-    if let Some(resp) = msg.response {
-        if let Ok(resp) = resp.downcast::<RESP>() {
-            Ok(Some(*resp))
-        } else {
-            Ok(None)
+pub trait PanelHandle<T: Any> {
+    fn id(&self) -> usize;
+    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut T> {
+        if let Some(p) = root_panel.get_panel(self.id()) {
+            if let Some(p) = p.downcast_mut::<T>() {
+                return Ok(p);
+            }
         }
-    } else {
-        Ok(None)
+        Err(winrt_error("Can't find panel"))
     }
 }
 
@@ -129,6 +104,9 @@ impl Panel for EmptyPanel {
     }
     fn visual(&self) -> ContainerVisual {
         self.visual.clone()
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -209,7 +187,7 @@ impl GameWindow {
     pub fn run<F>(mut self, mut event_handler: F)
     where
         F: 'static
-            + FnMut(Event<'_, PanelEvent>, &mut Panel, &PanelEventProxy) -> winrt::Result<()>,
+            + FnMut(Event<'_, PanelEvent>, &mut dyn Panel, &PanelEventProxy) -> winrt::Result<()>,
     {
         let event_loop = self.event_loop.take().unwrap();
         let mut panel = self.panel.take().unwrap();

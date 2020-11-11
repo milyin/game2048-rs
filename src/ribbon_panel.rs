@@ -1,9 +1,11 @@
+use std::any::Any;
+
 use bindings::windows::{
     foundation::numerics::{Vector2, Vector3},
     ui::composition::{Compositor, ContainerVisual},
 };
 
-use crate::game_window::{GameWindow, Panel, PanelEventProxy, PanelMessage};
+use crate::game_window::{GameWindow, Panel, PanelEventProxy};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -119,16 +121,6 @@ impl Panel for Ribbon {
         }
         Ok(())
     }
-    fn translate_message(&mut self, msg: PanelMessage) -> winrt::Result<PanelMessage> {
-        let mut msg = self.translate_message_default(msg)?;
-        for p in &mut self.cells {
-            msg = p.panel.translate_message(msg)?;
-            if msg.response.is_some() {
-                break;
-            }
-        }
-        Ok(msg)
-    }
 
     fn on_mouse_input(
         &mut self,
@@ -150,5 +142,20 @@ impl Panel for Ribbon {
             }
         }
         Ok(())
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+        if id == self.id() {
+            Some(self.as_any_mut())
+        } else {
+            for p in &mut self.cells {
+                if let Some(panel) = p.panel.get_panel(id) {
+                    return Some(panel);
+                }
+            }
+            None
+        }
     }
 }

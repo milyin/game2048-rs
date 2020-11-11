@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::collections::HashMap;
 
 use bindings::{
     microsoft::graphics::canvas::text::CanvasHorizontalAlignment,
@@ -20,13 +20,7 @@ use model::field::{Field, Origin, Side};
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::{request_panel, GameWindow, Panel};
-
-pub enum GameFieldCommand {
-    Reset,
-    Swipe(Side),
-    Undo,
-}
+use crate::game_window::{GameWindow, Panel, PanelHandle};
 
 pub struct GameField {
     id: usize,
@@ -47,37 +41,9 @@ pub struct GameFieldHandle {
     id: usize,
 }
 
-pub struct GameFieldProxy<'a> {
-    handle: GameFieldHandle,
-    root_panel: &'a mut dyn Panel,
-}
-
-impl<'a> GameFieldProxy<'a> {
-    pub fn reset(&mut self) -> winrt::Result<()> {
-        let _: Option<()> =
-            request_panel(self.root_panel, self.handle.id, GameFieldCommand::Reset)?;
-        Ok(())
-    }
-    pub fn swipe(&mut self, side: Side) -> winrt::Result<()> {
-        let _: Option<()> = request_panel(
-            self.root_panel,
-            self.handle.id,
-            GameFieldCommand::Swipe(side),
-        )?;
-        Ok(())
-    }
-    pub fn undo(&mut self) -> winrt::Result<()> {
-        let _: Option<()> = request_panel(self.root_panel, self.handle.id, GameFieldCommand::Undo)?;
-        Ok(())
-    }
-}
-
-impl GameFieldHandle {
-    pub fn at<'a>(&self, root_panel: &'a mut Panel) -> GameFieldProxy<'a> {
-        GameFieldProxy {
-            handle: self.clone(),
-            root_panel,
-        }
+impl PanelHandle<GameField> for GameFieldHandle {
+    fn id(&self) -> usize {
+        self.id
     }
 }
 
@@ -92,20 +58,8 @@ impl Panel for GameField {
         self.visual().set_size(self.visual().parent()?.size()?)?;
         self.scale_game_board()
     }
-    fn on_request(&mut self, request: Box<dyn Any>) -> winrt::Result<Box<dyn Any>> {
-        if let Ok(command) = request.downcast::<GameFieldCommand>() {
-            match *command {
-                GameFieldCommand::Reset => {}
-                GameFieldCommand::Swipe(side) => {
-                    self.swipe(side)?;
-                }
-                GameFieldCommand::Undo => {
-                    self.field.undo();
-                    self.animate_field()?;
-                }
-            }
-        }
-        Ok(Box::new(()))
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 }
 
@@ -167,6 +121,12 @@ impl GameField {
             self.field.append_tile();
             self.animate_field()?;
         }
+        Ok(())
+    }
+
+    pub fn undo(&mut self) -> winrt::Result<()> {
+        self.field.undo();
+        self.animate_field()?;
         Ok(())
     }
 
