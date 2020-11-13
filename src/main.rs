@@ -1,6 +1,7 @@
 mod game_field;
 //mod game_score;
 mod button_panel;
+mod control;
 mod game_window;
 mod interop;
 mod numerics;
@@ -9,6 +10,7 @@ mod text_panel;
 mod window_target;
 
 use button_panel::{ButtonPanel, ButtonPanelEvent};
+use control::ControlManager;
 use game_field::GameField;
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 
@@ -16,12 +18,7 @@ use ribbon_panel::{Ribbon, RibbonOrientation};
 use text_panel::TextPanel;
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 
-use game_window::{EmptyPanel, GameWindow, PanelHandle};
-
-use model::field::Side::Down;
-use model::field::Side::Left;
-use model::field::Side::Right;
-use model::field::Side::Up;
+use game_window::{EmptyPanel, GameWindow, PanelHandle, PanelManager};
 
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
@@ -55,51 +52,31 @@ fn run() -> winrt::Result<()> {
     let score_handle = score_panel.handle();
     let undo_button_handle = undo_button_panel.handle();
     // Join panels into tree
-    undo_button_panel.add_panel(undo_button_text_panel)?;
+    undo_button_panel.add_subpanel(undo_button_text_panel)?;
     hribbon_panel.add_panel(undo_button_panel, 1.)?;
     hribbon_panel.add_panel(score_panel, 1.)?;
     hribbon_panel.add_panel(empty_panel, 1.)?;
     vribbon_panel.add_panel(hribbon_panel, 1.)?;
     vribbon_panel.add_panel(game_field_panel, 4.)?;
-    window.set_panel(vribbon_panel)?;
 
-    window.run(move |event, root_panel, _| match event {
-        Event::WindowEvent {
-            event:
-                WindowEvent::KeyboardInput {
-                    device_id: _,
-                    input,
-                    is_synthetic: _,
-                },
-            ..
-        } => {
-            if input.state == ElementState::Pressed {
-                score += 1;
-                //score_handle.at(root_panel).set_text(score.to_string())?;
-                score_handle.at(root_panel)?.set_text(score.to_string())?;
-                if let Some(side) = match input.virtual_keycode {
-                    Some(VirtualKeyCode::Left) => Some(Left),
-                    Some(VirtualKeyCode::Right) => Some(Right),
-                    Some(VirtualKeyCode::Up) => Some(Up),
-                    Some(VirtualKeyCode::Down) => Some(Down),
-                    _ => None,
-                } {
-                    game_field_handle.at(root_panel)?.swipe(side)?;
-                } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
-                    game_field_handle.at(root_panel)?.undo()?;
+    let mut panel_manager = PanelManager::new(window.visual(), vribbon_panel)?;
+
+    let mut control_manager = ControlManager::new();
+    control_manager.add_control(undo_button_handle.clone());
+    control_manager.enable(panel_manager.root_panel(), &undo_button_handle, false)?;
+
+    window.run(move |event, proxy| {
+        panel_manager.process_event(&event, proxy)?;
+        control_manager.process_event(&event, proxy)?;
+        match event {
+            Event::UserEvent(e) => {
+                if undo_button_handle.match_event(e) == Some(ButtonPanelEvent::Pressed) {
+                    game_field_handle.at(panel_manager.root_panel())?.undo()?;
                 }
-                Ok(())
-            } else {
-                Ok(())
             }
+            _ => (),
         }
-        Event::UserEvent(e) => {
-            if undo_button_handle.event(e) == Some(ButtonPanelEvent::Pressed) {
-                game_field_handle.at(root_panel)?.undo()?;
-            }
-            Ok(())
-        }
-        _ => Ok(()),
+        Ok(())
     });
     Ok(())
 }

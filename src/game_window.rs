@@ -10,7 +10,7 @@ use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
 use winit::{
     dpi::PhysicalPosition,
-    event::{ElementState, Event, MouseButton, WindowEvent},
+    event::{ElementState, Event, KeyboardInput, MouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -42,6 +42,9 @@ pub trait Panel {
     ) -> winrt::Result<()> {
         Ok(())
     }
+    fn on_keyboard_input(&mut self, input: KeyboardInput) -> winrt::Result<()> {
+        Ok(())
+    }
     fn on_resize_default(&mut self) -> winrt::Result<()> {
         self.visual().set_size(self.visual().parent()?.size()?)
     }
@@ -54,8 +57,11 @@ pub trait Panel {
     }
 }
 
-pub trait PanelHandle<T: Any> {
+pub trait Handle {
     fn id(&self) -> usize;
+}
+
+pub trait PanelHandle<T: Any>: Handle {
     fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut T> {
         if let Some(p) = root_panel.get_panel(self.id()) {
             if let Some(p) = p.downcast_mut::<T>() {
@@ -110,6 +116,81 @@ impl Panel for EmptyPanel {
     }
 }
 
+pub struct PanelManager {
+    root_panel: Box<dyn Panel>,
+    owner: ContainerVisual,
+    cursor_position: PhysicalPosition<f64>,
+}
+
+impl PanelManager {
+    pub fn new<P: Panel + 'static>(owner: &ContainerVisual, panel: P) -> winrt::Result<Self> {
+        let mut root_panel = Box::new(panel) as Box<dyn Panel>;
+        let cursor_position = (0., 0.).into();
+        let owner = owner.clone();
+        owner
+            .children()?
+            .insert_at_top(root_panel.visual().clone())?; // TODO: remove on drop
+        root_panel.on_resize()?;
+        Ok(PanelManager {
+            root_panel,
+            owner,
+            cursor_position,
+        })
+    }
+
+    pub fn root_panel(&mut self) -> &mut (dyn Panel + 'static) {
+        &mut *self.root_panel
+    }
+
+    pub fn process_event(
+        &mut self,
+        evt: &Event<PanelEvent>,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        match evt {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => {
+                self.root_panel.on_resize()?;
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CursorMoved { position, .. },
+                ..
+            } => {
+                self.cursor_position = *position;
+                // TODO: on mouse move handle here
+            }
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        device_id: _,
+                        input,
+                        is_synthetic: _,
+                    },
+                ..
+            } => self.root_panel.on_keyboard_input(*input)?,
+            Event::WindowEvent {
+                event: WindowEvent::MouseInput { state, button, .. },
+                ..
+            } => {
+                // TODO: check for scaled modes
+                let position = Vector2 {
+                    x: self.cursor_position.x as f32, // - window_position.x as f32,
+                    y: self.cursor_position.y as f32, // - window_position.y as f32,
+                };
+                self.root_panel
+                    .on_mouse_input(position, *button, *state, &proxy)?
+            }
+            Event::MainEventsCleared => {
+                self.root_panel.on_idle(&proxy)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 pub struct GameWindow {
     compositor: Compositor,
     canvas_device: CanvasDevice,
@@ -118,7 +199,6 @@ pub struct GameWindow {
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
     window: Window,
-    panel: Option<Box<dyn Panel>>,
     next_id: usize,
 }
 
@@ -149,7 +229,6 @@ impl GameWindow {
             _target: target,
             event_loop: Some(event_loop),
             window,
-            panel: None,
             next_id: 0,
         })
     }
@@ -174,24 +253,11 @@ impl GameWindow {
         id
     }
 
-    pub fn set_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
-        self.visual().children()?.insert_at_top(panel.visual())?;
-        self.panel = Some(Box::new(panel));
-        Ok(())
-    }
-
-    pub fn root_panel(&mut self) -> Option<&mut (dyn Panel + 'static)> {
-        self.panel.as_deref_mut()
-    }
-
     pub fn run<F>(mut self, mut event_handler: F)
     where
-        F: 'static
-            + FnMut(Event<'_, PanelEvent>, &mut dyn Panel, &PanelEventProxy) -> winrt::Result<()>,
+        F: 'static + FnMut(Event<'_, PanelEvent>, &PanelEventProxy) -> winrt::Result<()>,
     {
         let event_loop = self.event_loop.take().unwrap();
-        let mut panel = self.panel.take().unwrap();
-        panel.on_resize().unwrap();
         let proxy = PanelEventProxy {
             proxy: event_loop.create_proxy(),
         };
@@ -200,13 +266,12 @@ impl GameWindow {
             // just to allow '?' usage
             || -> winrt::Result<()> {
                 *control_flow = ControlFlow::Wait;
-                match evt {
+                match &evt {
                     Event::WindowEvent {
                         event: WindowEvent::CloseRequested,
                         window_id,
-                    } if window_id == self.window.id() => {
+                    } if *window_id == self.window.id() => {
                         *control_flow = ControlFlow::Exit;
-                        Ok(())
                     }
                     Event::WindowEvent {
                         event: WindowEvent::Resized(size),
@@ -217,34 +282,10 @@ impl GameWindow {
                             y: size.height as f32,
                         };
                         self.root.set_size(&window_size)?;
-                        panel.on_resize()?;
-                        event_handler(evt, &mut *panel, &proxy)
                     }
-                    Event::WindowEvent {
-                        event: WindowEvent::CursorMoved { position, .. },
-                        ..
-                    } => {
-                        cursor_position = position;
-                        // TODO: on mouse move handle here
-                        Ok(())
-                    }
-                    Event::WindowEvent {
-                        event: WindowEvent::MouseInput { state, button, .. },
-                        ..
-                    } => {
-                        // TODO: check for scaled modes
-                        let position = Vector2 {
-                            x: cursor_position.x as f32, // - window_position.x as f32,
-                            y: cursor_position.y as f32, // - window_position.y as f32,
-                        };
-                        panel.on_mouse_input(position, button, state, &proxy)
-                    }
-                    Event::MainEventsCleared => {
-                        panel.on_idle(&proxy)?;
-                        event_handler(evt, &mut *panel, &proxy)
-                    }
-                    evt => event_handler(evt, &mut *panel, &proxy),
+                    _ => {}
                 }
+                event_handler(evt, &proxy)
             }()
             .unwrap()
         });

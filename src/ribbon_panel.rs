@@ -158,4 +158,11 @@ impl Panel for Ribbon {
             None
         }
     }
+
+    fn on_keyboard_input(&mut self, input: winit::event::KeyboardInput) -> winrt::Result<()> {
+        for p in &mut self.cells {
+            p.panel.on_keyboard_input(input)?;
+        }
+        Ok(())
+    }
 }

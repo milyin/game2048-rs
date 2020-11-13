@@ -16,11 +16,12 @@ use bindings::{
     windows::ui::Color, windows::ui::ColorHelper, windows::ui::Colors,
 };
 use model::field::{Field, Origin, Side};
+use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::{GameWindow, Panel, PanelHandle};
+use crate::game_window::{GameWindow, Handle, Panel, PanelHandle};
 
 pub struct GameField {
     id: usize,
@@ -41,11 +42,13 @@ pub struct GameFieldHandle {
     id: usize,
 }
 
-impl PanelHandle<GameField> for GameFieldHandle {
+impl Handle for GameFieldHandle {
     fn id(&self) -> usize {
         self.id
     }
 }
+
+impl PanelHandle<GameField> for GameFieldHandle {}
 
 impl Panel for GameField {
     fn id(&self) -> usize {
@@ -60,6 +63,22 @@ impl Panel for GameField {
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+    fn on_keyboard_input(&mut self, input: KeyboardInput) -> winrt::Result<()> {
+        if input.state == ElementState::Pressed {
+            if let Some(side) = match input.virtual_keycode {
+                Some(VirtualKeyCode::Left) => Some(Side::Left),
+                Some(VirtualKeyCode::Right) => Some(Side::Right),
+                Some(VirtualKeyCode::Up) => Some(Side::Up),
+                Some(VirtualKeyCode::Down) => Some(Side::Down),
+                _ => None,
+            } {
+                self.swipe(side)?;
+            } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
+                self.undo()?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -128,6 +147,10 @@ impl GameField {
         self.field.undo();
         self.animate_field()?;
         Ok(())
+    }
+
+    pub fn can_undo(&self) -> bool {
+        self.field.can_undo()
     }
 
     fn scale_game_board(&mut self) -> winrt::Result<()> {

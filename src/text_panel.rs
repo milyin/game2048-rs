@@ -13,27 +13,43 @@ use bindings::{
         ui::composition::CompositionGraphicsDevice,
         ui::{
             composition::{Compositor, ContainerVisual, SpriteVisual},
-            Colors,
+            Color, Colors,
         },
     },
 };
 
-use crate::game_window::{GameWindow, Panel, PanelEventProxy, PanelHandle};
+use crate::{
+    control::{Control, ControlHandle},
+    game_window::{GameWindow, Handle, Panel, PanelEventProxy, PanelHandle},
+};
 
 #[derive(Copy, Clone)]
 pub struct TextPanelHandle {
     id: usize,
 }
 
-impl PanelHandle<TextPanel> for TextPanelHandle {
+impl Handle for TextPanelHandle {
     fn id(&self) -> usize {
         self.id
+    }
+}
+
+impl PanelHandle<TextPanel> for TextPanelHandle {}
+
+impl ControlHandle for TextPanelHandle {
+    fn as_control<'a>(
+        &self,
+        root_panel: &'a mut dyn Panel,
+    ) -> winrt::Result<&'a mut dyn crate::control::Control> {
+        Ok(self.at(root_panel)?)
     }
 }
 
 pub struct TextPanel {
     id: usize,
     text: Cow<'static, str>,
+    enabled: bool,
+    text_color: Color,
     compositor: Compositor,
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
@@ -48,9 +64,13 @@ impl TextPanel {
         let composition_graphics_device = game_window.composition_graphics_device().clone();
         let visual = compositor.create_sprite_visual()?;
         let surface = None;
+        let enabled = true;
+        let text_color = Colors::black()?;
         Ok(Self {
             id: game_window.get_next_id(),
             text: "".into(),
+            enabled,
+            text_color,
             compositor,
             canvas_device,
             composition_graphics_device,
@@ -63,6 +83,10 @@ impl TextPanel {
     }
     pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> winrt::Result<()> {
         self.text = text.into();
+        self.redraw_text()
+    }
+    pub fn set_text_color(&mut self, color: Color) -> winrt::Result<()> {
+        self.text_color = color;
         self.redraw_text()
     }
 
@@ -105,8 +129,13 @@ impl TextPanel {
             )?;
             text_layout.set_vertical_alignment(CanvasVerticalAlignment::Center)?;
             text_layout.set_horizontal_alignment(CanvasHorizontalAlignment::Center)?;
+            let color = if self.enabled {
+                self.text_color.clone()
+            } else {
+                Colors::gray()?
+            };
 
-            ds.draw_text_layout_at_coords_with_color(text_layout, 0., 0., Colors::red()?)
+            ds.draw_text_layout_at_coords_with_color(text_layout, 0., 0., color)
         } else {
             Ok(())
         }
@@ -132,6 +161,21 @@ impl Panel for TextPanel {
         Ok(())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl Control for TextPanel {
+    fn on_enable(&mut self, enable: bool) -> winrt::Result<()> {
+        self.enabled = enable;
+        self.redraw_text()
+    }
+
+    fn on_set_focus(&mut self) -> winrt::Result<()> {
+        todo!()
+    }
+
+    fn as_panel(&self) -> &dyn Panel {
         self
     }
 }
