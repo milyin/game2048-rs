@@ -34,8 +34,8 @@ impl Handle for ButtonPanelHandle {
 impl PanelHandle<ButtonPanel, ButtonPanelEvent> for ButtonPanelHandle {}
 
 impl ControlHandle for ButtonPanelHandle {
-    fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut dyn Control> {
-        Ok(self.at(root_panel)?)
+    fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut dyn Control> {
+        self.at(root_panel).map(|p| p as &mut dyn Control)
     }
 }
 

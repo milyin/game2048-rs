@@ -66,13 +66,13 @@ pub trait Handle {
 }
 
 pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
-    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut PanelType> {
+    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut PanelType> {
         if let Some(p) = root_panel.get_panel(self.id()) {
             if let Some(p) = p.downcast_mut::<PanelType>() {
-                return Ok(p);
+                return Some(p);
             }
         }
-        Err(winrt_error("Can't find panel"))
+        None
     }
     fn extract_event(&self, event: &mut PanelEvent) -> Option<PanelEventType> {
         if event.panel_id == self.id() {
@@ -155,6 +155,15 @@ impl PanelManager {
 
     pub fn root_panel(&mut self) -> &mut (dyn Panel + 'static) {
         &mut *self.root_panel
+    }
+
+    pub fn panel<'a, T: Panel + 'static, E: Any + 'static, H: PanelHandle<T, E>>(
+        &'a mut self,
+        handle: H,
+    ) -> winrt::Result<&'a mut T> {
+        handle
+            .at(self.root_panel())
+            .ok_or(winrt_error("Can't find panel"))
     }
 
     pub fn process_event(

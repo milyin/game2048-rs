@@ -37,11 +37,8 @@ impl Handle for TextPanelHandle {
 impl PanelHandle<TextPanel> for TextPanelHandle {}
 
 impl ControlHandle for TextPanelHandle {
-    fn as_control<'a>(
-        &self,
-        root_panel: &'a mut dyn Panel,
-    ) -> winrt::Result<&'a mut dyn crate::control::Control> {
-        Ok(self.at(root_panel)?)
+    fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut dyn Control> {
+        self.at(root_panel).map(|p| p as &mut dyn Control)
     }
 }
 
