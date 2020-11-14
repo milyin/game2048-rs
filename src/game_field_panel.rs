@@ -21,9 +21,14 @@ use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::{GameWindow, Handle, Panel, PanelHandle};
+use crate::game_window::{GameWindow, Handle, Panel, PanelEventProxy, PanelHandle};
 
-pub struct GameField {
+#[derive(PartialEq)]
+pub enum GameFieldPanelEvent {
+    Changed,
+}
+
+pub struct GameFieldPanel {
     id: usize,
     compositor: Compositor,
     canvas_device: CanvasDevice,
@@ -48,9 +53,9 @@ impl Handle for GameFieldHandle {
     }
 }
 
-impl PanelHandle<GameField> for GameFieldHandle {}
+impl PanelHandle<GameFieldPanel, GameFieldPanelEvent> for GameFieldHandle {}
 
-impl Panel for GameField {
+impl Panel for GameFieldPanel {
     fn id(&self) -> usize {
         self.id
     }
@@ -64,7 +69,11 @@ impl Panel for GameField {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    fn on_keyboard_input(&mut self, input: KeyboardInput) -> winrt::Result<()> {
+    fn on_keyboard_input(
+        &mut self,
+        input: KeyboardInput,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
         if input.state == ElementState::Pressed {
             if let Some(side) = match input.virtual_keycode {
                 Some(VirtualKeyCode::Left) => Some(Side::Left),
@@ -73,16 +82,16 @@ impl Panel for GameField {
                 Some(VirtualKeyCode::Down) => Some(Side::Down),
                 _ => None,
             } {
-                self.swipe(side)?;
+                self.swipe(side, proxy)?;
             } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
-                self.undo()?;
+                self.undo(proxy)?;
             }
         }
         Ok(())
     }
 }
 
-impl GameField {
+impl GameFieldPanel {
     pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
         let compositor = game_window.compositor().clone();
         let root = compositor.create_sprite_visual()?;
@@ -111,6 +120,7 @@ impl GameField {
         let mut field = Field::new(4, 4);
         field.append_tile();
         field.append_tile();
+        field.hold_all();
 
         let mut game_field = Self {
             id: game_window.get_next_id(),
@@ -133,19 +143,23 @@ impl GameField {
         GameFieldHandle { id: self.id }
     }
 
-    pub fn swipe(&mut self, side: Side) -> winrt::Result<()> {
+    pub fn swipe(&mut self, side: Side, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if self.field.can_swipe(side) {
             self.field.swipe(side);
             self.field.append_tile();
             self.field.append_tile();
             self.animate_field()?;
+            proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         }
         Ok(())
     }
 
-    pub fn undo(&mut self) -> winrt::Result<()> {
-        self.field.undo();
-        self.animate_field()?;
+    pub fn undo(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        if self.field.can_undo() {
+            self.field.undo();
+            self.animate_field()?;
+            proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
+        }
         Ok(())
     }
 

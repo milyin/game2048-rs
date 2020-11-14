@@ -1,4 +1,4 @@
-mod game_field;
+mod game_field_panel;
 //mod game_score;
 mod button_panel;
 mod control;
@@ -11,12 +11,12 @@ mod window_target;
 
 use button_panel::{ButtonPanel, ButtonPanelEvent};
 use control::ControlManager;
-use game_field::GameField;
+use game_field_panel::{GameFieldPanel, GameFieldPanelEvent};
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 
 use ribbon_panel::{Ribbon, RibbonOrientation};
 use text_panel::TextPanel;
-use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use winit::event::Event;
 
 use game_window::{EmptyPanel, GameWindow, PanelHandle, PanelManager};
 
@@ -34,7 +34,7 @@ fn run() -> winrt::Result<()> {
     let mut window = GameWindow::new()?;
     window.window().set_title("2048");
     // Constuct panels
-    let game_field_panel = GameField::new(&mut window)?;
+    let game_field_panel = GameFieldPanel::new(&mut window)?;
     let score_panel = TextPanel::new(&mut window)?;
     let mut undo_button_panel = ButtonPanel::new(&mut window)?;
     let mut undo_button_text_panel = TextPanel::new(&mut window)?;
@@ -63,18 +63,28 @@ fn run() -> winrt::Result<()> {
 
     let mut control_manager = ControlManager::new();
     control_manager.add_control(undo_button_handle.clone());
-    control_manager.enable(panel_manager.root_panel(), &undo_button_handle, false)?;
 
-    window.run(move |event, proxy| {
+    let update_undo_button = move |panel_manager: &mut PanelManager,
+                                   control_manager: &mut ControlManager|
+          -> winrt::Result<()> {
+        let can_undo = game_field_handle.at(panel_manager.root_panel())?.can_undo();
+        control_manager.enable(panel_manager.root_panel(), &undo_button_handle, can_undo)?;
+        Ok(())
+    };
+
+    update_undo_button(&mut panel_manager, &mut control_manager);
+
+    window.run(move |mut event, proxy| {
         panel_manager.process_event(&event, proxy)?;
         control_manager.process_event(&event, proxy)?;
-        match event {
-            Event::UserEvent(e) => {
-                if undo_button_handle.match_event(e) == Some(ButtonPanelEvent::Pressed) {
-                    game_field_handle.at(panel_manager.root_panel())?.undo()?;
-                }
+        if let Event::UserEvent(ref mut e) = event {
+            if undo_button_handle.extract_event(e) == Some(ButtonPanelEvent::Pressed) {
+                game_field_handle
+                    .at(panel_manager.root_panel())?
+                    .undo(proxy)?;
+            } else if game_field_handle.extract_event(e) == Some(GameFieldPanelEvent::Changed) {
+                update_undo_button(&mut panel_manager, &mut control_manager)?;
             }
-            _ => (),
         }
         Ok(())
     });

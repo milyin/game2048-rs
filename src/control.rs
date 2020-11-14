@@ -26,7 +26,7 @@ impl ControlManager {
         self.controls.push(Box::new(control_handle));
     }
     pub fn enable<T: ControlHandle>(
-        &mut self,
+        &self,
         root_panel: &mut dyn Panel,
         control_handle: &T,
         enable: bool,

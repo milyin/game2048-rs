@@ -18,7 +18,7 @@ use winit::{event_loop::EventLoopProxy, window::Window};
 
 pub struct PanelEvent {
     pub panel_id: usize,
-    pub data: Box<dyn Any>,
+    pub data: Option<Box<dyn Any>>,
 }
 pub trait Panel {
     fn id(&self) -> usize;
@@ -42,7 +42,11 @@ pub trait Panel {
     ) -> winrt::Result<()> {
         Ok(())
     }
-    fn on_keyboard_input(&mut self, input: KeyboardInput) -> winrt::Result<()> {
+    fn on_keyboard_input(
+        &mut self,
+        input: KeyboardInput,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
         Ok(())
     }
     fn on_resize_default(&mut self) -> winrt::Result<()> {
@@ -61,14 +65,25 @@ pub trait Handle {
     fn id(&self) -> usize;
 }
 
-pub trait PanelHandle<T: Any>: Handle {
-    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut T> {
+pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
+    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut PanelType> {
         if let Some(p) = root_panel.get_panel(self.id()) {
-            if let Some(p) = p.downcast_mut::<T>() {
+            if let Some(p) = p.downcast_mut::<PanelType>() {
                 return Ok(p);
             }
         }
         Err(winrt_error("Can't find panel"))
+    }
+    fn extract_event(&self, event: &mut PanelEvent) -> Option<PanelEventType> {
+        if event.panel_id == self.id() {
+            if let Some(data) = event.data.take() {
+                data.downcast::<PanelEventType>().ok().map(|e| *e)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -85,7 +100,7 @@ impl PanelEventProxy {
         self.proxy
             .send_event(PanelEvent {
                 panel_id,
-                data: Box::new(command),
+                data: Some(Box::new(command)),
             })
             .map_err(winrt_error)
     }
@@ -169,7 +184,7 @@ impl PanelManager {
                         is_synthetic: _,
                     },
                 ..
-            } => self.root_panel.on_keyboard_input(*input)?,
+            } => self.root_panel.on_keyboard_input(*input, proxy)?,
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
                 ..

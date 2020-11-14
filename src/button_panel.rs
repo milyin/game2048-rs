@@ -20,7 +20,7 @@ pub struct ButtonPanel {
     visual: ContainerVisual,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct ButtonPanelHandle {
     id: usize,
 }
@@ -31,21 +31,11 @@ impl Handle for ButtonPanelHandle {
     }
 }
 
-impl PanelHandle<ButtonPanel> for ButtonPanelHandle {}
+impl PanelHandle<ButtonPanel, ButtonPanelEvent> for ButtonPanelHandle {}
 
 impl ControlHandle for ButtonPanelHandle {
     fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut dyn Control> {
         Ok(self.at(root_panel)?)
-    }
-}
-
-impl ButtonPanelHandle {
-    pub fn match_event(&self, event: PanelEvent) -> Option<ButtonPanelEvent> {
-        if event.panel_id == self.id {
-            event.data.downcast::<ButtonPanelEvent>().ok().map(|e| *e)
-        } else {
-            None
-        }
     }
 }
 
