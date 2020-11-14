@@ -40,6 +40,7 @@ pub struct GameFieldPanel {
     tile_shapes: HashMap<u32, CompositionShape>,
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
     field: Field,
+    score: u32,
 }
 
 #[derive(Copy, Clone)]
@@ -122,6 +123,8 @@ impl GameFieldPanel {
         field.append_tile();
         field.hold_all();
 
+        let score = 0;
+
         let mut game_field = Self {
             id: game_window.get_next_id(),
             compositor,
@@ -134,6 +137,7 @@ impl GameFieldPanel {
             tile_shapes: HashMap::new(),
             tile_text_layouts: HashMap::new(),
             field,
+            score,
         };
         game_field.animate_field()?; // TODO: separate 'new' and 'OnInit'
         Ok(game_field)
@@ -143,9 +147,13 @@ impl GameFieldPanel {
         GameFieldHandle { id: self.id }
     }
 
+    pub fn get_score(&self) -> u32 {
+        self.score
+    }
+
     pub fn swipe(&mut self, side: Side, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if self.field.can_swipe(side) {
-            self.field.swipe(side);
+            self.score += self.field.swipe(side);
             self.field.append_tile();
             self.field.append_tile();
             self.animate_field()?;
@@ -156,7 +164,7 @@ impl GameFieldPanel {
 
     pub fn undo(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if self.field.can_undo() {
-            self.field.undo();
+            self.score -= self.field.undo();
             self.animate_field()?;
             proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         }

@@ -59,31 +59,33 @@ fn can_join_tiles(dst: Option<Tile>, src: Option<Tile>) -> bool {
         (None, None) => false,
     }
 }
-fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> bool {
+fn join_tiles(dst: &mut Option<Tile>, src: &mut Option<Tile>) -> Option<u32> {
     match (*dst, *src) {
         (None, Some(Tile(level, Hold(x, y)))) | (None, Some(Tile(level, Moved(x, y)))) => {
             *dst = Some(Tile(level, Moved(x, y)));
             *src = None;
-            true
+            Some(0)
         }
         (None, Some(Tile(level, Merged(a, b)))) => {
             *dst = Some(Tile(level, Merged(a, b)));
             *src = None;
-            true
+            Some(0)
         }
         (Some(Tile(ld, Hold(xd, yd))), Some(Tile(ls, Hold(xs, ys))))
         | (Some(Tile(ld, Hold(xd, yd))), Some(Tile(ls, Moved(xs, ys))))
         | (Some(Tile(ld, Moved(xd, yd))), Some(Tile(ls, Hold(xs, ys))))
         | (Some(Tile(ld, Moved(xd, yd))), Some(Tile(ls, Moved(xs, ys)))) => {
             if ld == ls {
-                *dst = Some(Tile(ld + 1, Merged((xd, yd), (xs, ys))));
+                let dst_tile = Tile(ld + 1, Merged((xd, yd), (xs, ys)));
+                let score = dst_tile.get_n();
+                *dst = Some(dst_tile);
                 *src = None;
-                true
+                Some(score)
             } else {
-                false
+                None
             }
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -171,15 +173,16 @@ impl Field {
         }
     }
 
-    fn swipe_step(&mut self, side: Side, x: usize) -> bool {
+    fn swipe_step(&mut self, side: Side, x: usize, score_acc: &mut u32) -> bool {
         let mut result = false;
         let height = self.height_from_side(side);
         for y in 0..height - 1 {
             let mut up = self.get_from_side(side, x, y);
             let mut down = self.get_from_side(side, x, y + 1);
-            if join_tiles(&mut up, &mut down) {
+            if let Some(score) = join_tiles(&mut up, &mut down) {
                 self.put_from_side(side, x, y, up);
                 self.put_from_side(side, x, y + 1, down);
+                *score_acc += score;
                 result = true;
             }
         }
@@ -201,12 +204,14 @@ impl Field {
         return false;
     }
 
-    pub fn swipe(&mut self, side: Side) {
+    pub fn swipe(&mut self, side: Side) -> u32 {
+        let mut score = 0;
         let width = self.width_from_side(side);
         self.hold_all();
         for x in 0..width {
-            while self.swipe_step(side, x) {}
+            while self.swipe_step(side, x, &mut score) {}
         }
+        score
     }
 
     pub fn get_free_cells(&self) -> Vec<(usize, usize)> {
@@ -247,7 +252,8 @@ impl Field {
         return false;
     }
 
-    pub fn undo(&mut self) {
+    pub fn undo(&mut self) -> u32 {
+        let mut score = 0;
         let width = self.width();
         let height = self.height();
         let mut arr = Array2::default((height, width));
@@ -258,21 +264,25 @@ impl Field {
                         let index = self.index_from_side(Up, x, y);
                         *arr.get_mut(index).unwrap() = tile;
                     }
-                    Some(Tile(n, Moved(from_x, from_y))) => {
+                    Some(Tile(level, Moved(from_x, from_y))) => {
                         let index = self.index_from_side(Up, from_x, from_y);
-                        *arr.get_mut(index).unwrap() = Some(Tile(n, Hold(from_x, from_y)));
+                        *arr.get_mut(index).unwrap() = Some(Tile(level, Hold(from_x, from_y)));
                     }
-                    Some(Tile(n, Merged(a, b))) => {
-                        let index_a = self.index_from_side(Up, a.0, a.1);
-                        let index_b = self.index_from_side(Up, b.0, b.1);
-                        *arr.get_mut(index_a).unwrap() = Some(Tile(n - 1, Hold(a.0, a.1)));
-                        *arr.get_mut(index_b).unwrap() = Some(Tile(n - 1, Hold(b.0, b.1)));
+                    tile @ Some(Tile(_, Merged(_, _))) => {
+                        score += tile.unwrap().get_n();
+                        if let Some(Tile(level, Merged(a, b))) = tile {
+                            let index_a = self.index_from_side(Up, a.0, a.1);
+                            let index_b = self.index_from_side(Up, b.0, b.1);
+                            *arr.get_mut(index_a).unwrap() = Some(Tile(level - 1, Hold(a.0, a.1)));
+                            *arr.get_mut(index_b).unwrap() = Some(Tile(level - 1, Hold(b.0, b.1)));
+                        }
                     }
                     _ => {}
                 }
             }
         }
         self.0 = arr;
+        score
     }
 }
 
@@ -398,7 +408,8 @@ fn swipe_up() {
         [None, None, None, None],
         [None, None, None, None],
     ]);
-    field.swipe(Up);
+    let score = field.swipe(Up);
+    assert_eq!(score, 20);
     assert_eq!(field.into_array(), expected);
     assert_eq!(field.0, expected_field);
 }
@@ -420,7 +431,8 @@ fn swipe_down() {
         0, 0, 4, 8,
         0, 4, 4, 4,
     ]).unwrap();
-    field.swipe(Down);
+    let score = field.swipe(Down);
+    assert_eq!(score, 20);
     assert_eq!(field.into_array(), expected);
 }
 
@@ -451,8 +463,9 @@ fn swipe_left() {
         [hold(2, 0, 2), merged(2, (2, 2), (3, 2)), None, None],
         [merged(2, (0, 3), (3, 3)), None, None, None],
     ]);
-    field.swipe(Left);
+    let score = field.swipe(Left);
     #[rustfmt::skip]
+    assert_eq!(score, 20);
     assert_eq!(field.into_array(), expected);
     assert_eq!(field.0, expected_field);
 }
@@ -474,6 +487,7 @@ fn swipe_right() {
         0, 0, 0, 4,
         0, 0, 0, 2
     ]).unwrap();
-    field.swipe(Right);
+    let score = field.swipe(Right);
+    assert_eq!(score, 16);
     assert_eq!(field.into_array(), expected);
 }

@@ -64,17 +64,22 @@ fn run() -> winrt::Result<()> {
     let mut control_manager = ControlManager::new();
     control_manager.add_control(undo_button_handle.clone());
 
-    let update_undo_button = move |panel_manager: &mut PanelManager,
-                                   control_manager: &mut ControlManager|
+    let update_buttons = move |panel_manager: &mut PanelManager,
+                               control_manager: &mut ControlManager|
           -> winrt::Result<()> {
-        let can_undo = panel_manager.panel(game_field_handle)?.can_undo();
+        let game_field = panel_manager.panel(game_field_handle)?;
+        let can_undo = game_field.can_undo();
+        let score = game_field.get_score();
         control_manager
             .with(panel_manager)
             .enable(undo_button_handle, can_undo)?;
+        panel_manager
+            .panel(score_handle)?
+            .set_text(score.to_string())?;
         Ok(())
     };
 
-    update_undo_button(&mut panel_manager, &mut control_manager)?;
+    update_buttons(&mut panel_manager, &mut control_manager)?;
 
     window.run(move |mut event, proxy| {
         panel_manager.process_event(&event, proxy)?;
@@ -83,7 +88,7 @@ fn run() -> winrt::Result<()> {
             if undo_button_handle.extract_event(e) == Some(ButtonPanelEvent::Pressed) {
                 panel_manager.panel(game_field_handle)?.undo(proxy)?;
             } else if game_field_handle.extract_event(e) == Some(GameFieldPanelEvent::Changed) {
-                update_undo_button(&mut panel_manager, &mut control_manager)?;
+                update_buttons(&mut panel_manager, &mut control_manager)?;
             }
         }
         Ok(())
