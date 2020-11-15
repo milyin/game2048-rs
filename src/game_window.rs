@@ -1,15 +1,18 @@
 use std::any::Any;
 
 use crate::window_target::CompositionDesktopWindowTargetSource;
-use bindings::microsoft::graphics::canvas::ui::composition::CanvasComposition;
 use bindings::microsoft::graphics::canvas::CanvasDevice;
 use bindings::windows::foundation::numerics::Vector2;
 use bindings::windows::ui::composition::desktop::DesktopWindowTarget;
 use bindings::windows::ui::composition::CompositionGraphicsDevice;
 use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
+use bindings::{
+    microsoft::graphics::canvas::ui::composition::CanvasComposition,
+    windows::foundation::numerics::Vector3,
+};
 use winit::{
-    dpi::PhysicalPosition,
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, MouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -294,6 +297,8 @@ impl GameWindow {
         root.set_size(&window_size)?;
         target.set_root(&root)?;
 
+        window.set_min_inner_size(Some(PhysicalSize::new(100, 100)));
+
         let canvas_device = CanvasDevice::get_shared_device()?;
         let composition_graphics_device =
             CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
@@ -334,7 +339,6 @@ impl GameWindow {
         let proxy = PanelEventProxy {
             proxy: event_loop.create_proxy(),
         };
-        let mut cursor_position: PhysicalPosition<f64> = (0., 0.).into();
         event_loop.run(move |evt, _, control_flow| {
             // just to allow '?' usage
             || -> winrt::Result<()> {
@@ -354,7 +358,7 @@ impl GameWindow {
                             x: size.width as f32,
                             y: size.height as f32,
                         };
-                        self.root.set_size(&window_size)?;
+                        self.root.set_size(window_size)?;
                     }
                     _ => {}
                 }
