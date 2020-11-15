@@ -130,8 +130,8 @@ impl Panel for Ribbon {
         proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
         for p in &mut self.cells {
-            let offset = p.panel.visual().offset()?;
-            let size = p.panel.visual().size()?;
+            let offset = p.container.offset()?;
+            let size = p.container.size()?;
             let position = Vector2 {
                 x: position.x - offset.x,
                 y: position.y - offset.y,

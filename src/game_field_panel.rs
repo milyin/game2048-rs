@@ -21,7 +21,7 @@ use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::{PanelManager, Handle, Panel, PanelEventProxy, PanelHandle};
+use crate::game_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager};
 
 #[derive(PartialEq)]
 pub enum GameFieldPanelEvent {
@@ -118,12 +118,7 @@ impl GameFieldPanel {
         //    Array2::from_shape_vec((4, 3), vec![2, 4, 4, 2, 2, 4, 0, 2, 2, 0, 0, 2]).unwrap();
         //let mut field = Field::from_array(array);
 
-        let mut field = Field::new(4, 4);
-        field.append_tile();
-        field.append_tile();
-        field.hold_all();
-
-        let score = 0;
+        let (field, score) = Self::reset_field_and_score();
 
         let mut game_field = Self {
             id: game_window.get_next_id(),
@@ -168,6 +163,23 @@ impl GameFieldPanel {
             self.animate_field()?;
             proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         }
+        Ok(())
+    }
+
+    fn reset_field_and_score() -> (Field, u32) {
+        let mut field = Field::new(4, 4);
+        field.append_tile();
+        field.append_tile();
+        field.hold_all();
+        (field, 0)
+    }
+
+    pub fn reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        let (field, score) = Self::reset_field_and_score();
+        self.field = field;
+        self.score = score;
+        self.animate_field()?;
+        proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         Ok(())
     }
 
