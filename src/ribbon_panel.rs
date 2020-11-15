@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::{Compositor, ContainerVisual},
 };
 
-use crate::game_window::{GameWindow, Panel, PanelEventProxy};
+use crate::game_window::{Panel, PanelEventProxy, PanelManager};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -29,13 +29,13 @@ pub struct Ribbon {
 
 impl Ribbon {
     pub fn new(
-        game_window: &mut GameWindow,
+        panel_manager: &mut PanelManager,
         orientation: RibbonOrientation,
     ) -> winrt::Result<Self> {
-        let compositor = game_window.compositor().clone();
+        let compositor = panel_manager.compositor().clone();
         let ribbon = compositor.create_container_visual()?;
         Ok(Self {
-            id: game_window.get_next_id(),
+            id: panel_manager.get_next_id(),
             compositor,
             orientation,
             cells: Vec::new(),

@@ -56,7 +56,7 @@ impl<'a, 'b> ControlManagerWith<'a, 'b> {
     ) -> winrt::Result<()> {
         for h in &self.control_manager.controls {
             if h.id() == control_handle.id() {
-                if let Some(c) = h.as_control(self.panel_manager.root_panel()) {
+                if let Some(c) = h.as_control(self.panel_manager.root_panel()?) {
                     c.on_enable(enable)?
                 }
             }

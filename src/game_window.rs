@@ -61,6 +61,13 @@ pub trait Panel {
     }
 }
 
+#[derive(Clone)]
+pub struct PanelGlobals {
+    compositor: Compositor,
+    canvas_device: CanvasDevice,
+    composition_graphics_device: CompositionGraphicsDevice,
+}
+
 pub trait Handle {
     fn id(&self) -> usize;
 }
@@ -112,9 +119,12 @@ pub struct EmptyPanel {
 }
 
 impl EmptyPanel {
-    pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
-        let visual = game_window.compositor().create_container_visual()?;
-        let id = game_window.get_next_id();
+    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
+        let visual = panel_manager
+            .get_globals()
+            .compositor
+            .create_container_visual()?;
+        let id = panel_manager.get_next_id();
         Ok(Self { id, visual })
     }
 }
@@ -132,29 +142,41 @@ impl Panel for EmptyPanel {
 }
 
 pub struct PanelManager {
-    root_panel: Box<dyn Panel>,
+    panel_globals: PanelGlobals,
+    root_panel: Option<Box<dyn Panel>>,
     owner: ContainerVisual,
     cursor_position: PhysicalPosition<f64>,
+    next_id: usize,
 }
 
 impl PanelManager {
-    pub fn new<P: Panel + 'static>(owner: &ContainerVisual, panel: P) -> winrt::Result<Self> {
-        let mut root_panel = Box::new(panel) as Box<dyn Panel>;
+    fn new(owner: &ContainerVisual, panel_globals: PanelGlobals) -> winrt::Result<Self> {
         let cursor_position = (0., 0.).into();
         let owner = owner.clone();
-        owner
-            .children()?
-            .insert_at_top(root_panel.visual().clone())?; // TODO: remove on drop
-        root_panel.on_resize()?;
         Ok(PanelManager {
-            root_panel,
+            panel_globals,
+            root_panel: None,
             owner,
             cursor_position,
+            next_id: 0,
         })
     }
 
-    pub fn root_panel(&mut self) -> &mut (dyn Panel + 'static) {
-        &mut *self.root_panel
+    pub fn set_root_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+        self.root_panel = Some(Box::new(panel));
+        self.owner
+            .children()?
+            .insert_at_top(self.root_panel()?.visual().clone())?; // TODO: remove on drop
+        self.root_panel()?.on_resize()?;
+        Ok(())
+    }
+
+    pub fn root_panel(&mut self) -> winrt::Result<&mut (dyn Panel + 'static)> {
+        if let Some(root_panel) = self.root_panel.as_deref_mut() {
+            Ok(&mut *root_panel)
+        } else {
+            Err(winrt_error("No root panel set in panal manager"))
+        }
     }
 
     pub fn panel<'a, T: Panel + 'static, E: Any + 'static, H: PanelHandle<T, E>>(
@@ -162,8 +184,28 @@ impl PanelManager {
         handle: H,
     ) -> winrt::Result<&'a mut T> {
         handle
-            .at(self.root_panel())
+            .at(self.root_panel()?)
             .ok_or(winrt_error("Can't find panel"))
+    }
+
+    pub fn get_next_id(&mut self) -> usize {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    pub fn get_globals(&self) -> PanelGlobals {
+        self.panel_globals.clone()
+    }
+
+    pub fn compositor(&self) -> &Compositor {
+        &self.panel_globals.compositor
+    }
+    pub fn canvas_device(&self) -> &CanvasDevice {
+        &self.panel_globals.canvas_device
+    }
+    pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
+        &self.panel_globals.composition_graphics_device
     }
 
     pub fn process_event(
@@ -176,7 +218,7 @@ impl PanelManager {
                 event: WindowEvent::Resized(_),
                 ..
             } => {
-                self.root_panel.on_resize()?;
+                self.root_panel()?.on_resize()?;
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
@@ -193,7 +235,7 @@ impl PanelManager {
                         is_synthetic: _,
                     },
                 ..
-            } => self.root_panel.on_keyboard_input(*input, proxy)?,
+            } => self.root_panel()?.on_keyboard_input(*input, proxy)?,
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
                 ..
@@ -203,11 +245,11 @@ impl PanelManager {
                     x: self.cursor_position.x as f32, // - window_position.x as f32,
                     y: self.cursor_position.y as f32, // - window_position.y as f32,
                 };
-                self.root_panel
+                self.root_panel()?
                     .on_mouse_input(position, *button, *state, &proxy)?
             }
             Event::MainEventsCleared => {
-                self.root_panel.on_idle(&proxy)?;
+                self.root_panel()?.on_idle(&proxy)?;
             }
             _ => {}
         }
@@ -223,7 +265,6 @@ pub struct GameWindow {
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
     window: Window,
-    next_id: usize,
 }
 
 impl GameWindow {
@@ -253,7 +294,6 @@ impl GameWindow {
             _target: target,
             event_loop: Some(event_loop),
             window,
-            next_id: 0,
         })
     }
     pub fn window(&mut self) -> &mut Window {
@@ -271,10 +311,16 @@ impl GameWindow {
     pub fn visual(&self) -> &ContainerVisual {
         &self.root
     }
-    pub fn get_next_id(&mut self) -> usize {
-        let id = self.next_id;
-        self.next_id += 1;
-        id
+
+    pub fn create_panel_manager(&self) -> winrt::Result<PanelManager> {
+        PanelManager::new(
+            &self.root,
+            PanelGlobals {
+                compositor: self.compositor.clone(),
+                canvas_device: self.canvas_device.clone(),
+                composition_graphics_device: self.composition_graphics_device.clone(),
+            },
+        )
     }
 
     pub fn run<F>(mut self, mut event_handler: F)

@@ -21,7 +21,7 @@ use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
 
-use crate::game_window::{GameWindow, Handle, Panel, PanelEventProxy, PanelHandle};
+use crate::game_window::{PanelManager, Handle, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(PartialEq)]
 pub enum GameFieldPanelEvent {
@@ -93,7 +93,7 @@ impl Panel for GameFieldPanel {
 }
 
 impl GameFieldPanel {
-    pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
+    pub fn new(game_window: &mut PanelManager) -> winrt::Result<Self> {
         let compositor = game_window.compositor().clone();
         let root = compositor.create_sprite_visual()?;
         root.set_offset(Vector3 {

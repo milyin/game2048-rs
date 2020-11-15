@@ -1,7 +1,7 @@
-mod game_field_panel;
-//mod game_score;
+//mod background_panel;
 mod button_panel;
 mod control;
+mod game_field_panel;
 mod game_window;
 mod interop;
 mod numerics;
@@ -33,14 +33,16 @@ fn run() -> winrt::Result<()> {
     //
     let mut window = GameWindow::new()?;
     window.window().set_title("2048");
+    let mut panel_manager = window.create_panel_manager()?;
+
     // Constuct panels
-    let game_field_panel = GameFieldPanel::new(&mut window)?;
-    let score_panel = TextPanel::new(&mut window)?;
-    let mut undo_button_panel = ButtonPanel::new(&mut window)?;
-    let mut undo_button_text_panel = TextPanel::new(&mut window)?;
-    let empty_panel = EmptyPanel::new(&mut window)?;
-    let mut vribbon_panel = Ribbon::new(&mut window, RibbonOrientation::Vertical)?;
-    let mut hribbon_panel = Ribbon::new(&mut window, RibbonOrientation::Horizontal)?;
+    let game_field_panel = GameFieldPanel::new(&mut panel_manager)?;
+    let score_panel = TextPanel::new(&mut panel_manager)?;
+    let mut undo_button_panel = ButtonPanel::new(&mut panel_manager)?;
+    let mut undo_button_text_panel = TextPanel::new(&mut panel_manager)?;
+    let empty_panel = EmptyPanel::new(&mut panel_manager)?;
+    let mut vribbon_panel = Ribbon::new(&mut panel_manager, RibbonOrientation::Vertical)?;
+    let mut hribbon_panel = Ribbon::new(&mut panel_manager, RibbonOrientation::Horizontal)?;
 
     //
     // Initialize panels
@@ -59,7 +61,7 @@ fn run() -> winrt::Result<()> {
     vribbon_panel.add_panel(hribbon_panel, 1.)?;
     vribbon_panel.add_panel(game_field_panel, 4.)?;
 
-    let mut panel_manager = PanelManager::new(window.visual(), vribbon_panel)?;
+    panel_manager.set_root_panel(vribbon_panel);
 
     let mut control_manager = ControlManager::new();
     control_manager.add_control(undo_button_handle.clone());

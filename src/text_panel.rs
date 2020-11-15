@@ -20,7 +20,7 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    game_window::{GameWindow, Handle, Panel, PanelEventProxy, PanelHandle},
+    game_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager},
 };
 
 #[derive(Copy, Clone)]
@@ -55,16 +55,16 @@ pub struct TextPanel {
 }
 
 impl TextPanel {
-    pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
-        let compositor = game_window.compositor().clone();
-        let canvas_device = game_window.canvas_device().clone();
-        let composition_graphics_device = game_window.composition_graphics_device().clone();
+    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
+        let compositor = panel_manager.compositor().clone();
+        let canvas_device = panel_manager.canvas_device().clone();
+        let composition_graphics_device = panel_manager.composition_graphics_device().clone();
         let visual = compositor.create_sprite_visual()?;
         let surface = None;
         let enabled = true;
         let text_color = Colors::black()?;
         Ok(Self {
-            id: game_window.get_next_id(),
+            id: panel_manager.get_next_id(),
             text: "".into(),
             enabled,
             text_color,

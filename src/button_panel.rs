@@ -6,7 +6,7 @@ use winit::event::{ElementState, MouseButton};
 use crate::{
     control::{Control, ControlHandle},
     game_window::{
-        winrt_error, GameWindow, Handle, Panel, PanelEvent, PanelEventProxy, PanelHandle,
+        winrt_error, PanelManager, Handle, Panel, PanelEvent, PanelEventProxy, PanelHandle,
     },
 };
 
@@ -40,11 +40,11 @@ impl ControlHandle for ButtonPanelHandle {
 }
 
 impl ButtonPanel {
-    pub fn new(game_window: &mut GameWindow) -> winrt::Result<Self> {
-        let compositor = game_window.compositor().clone();
+    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
+        let compositor = panel_manager.compositor().clone();
         let visual = compositor.create_container_visual()?;
         Ok(Self {
-            id: game_window.get_next_id(),
+            id: panel_manager.get_next_id(),
             subpabel: None,
             visual,
         })
