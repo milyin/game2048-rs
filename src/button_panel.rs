@@ -5,9 +5,7 @@ use winit::event::{ElementState, MouseButton};
 
 use crate::{
     control::{Control, ControlHandle},
-    game_window::{
-        winrt_error, PanelManager, Handle, Panel, PanelEvent, PanelEventProxy, PanelHandle,
-    },
+    game_window::{winrt_error, Handle, Panel, PanelEventProxy, PanelHandle, PanelManager},
 };
 
 #[derive(PartialEq)]
@@ -16,7 +14,7 @@ pub enum ButtonPanelEvent {
 }
 pub struct ButtonPanel {
     id: usize,
-    subpabel: Option<Box<dyn Control>>,
+    panel: Option<Box<dyn Control>>,
     visual: ContainerVisual,
 }
 
@@ -45,22 +43,22 @@ impl ButtonPanel {
         let visual = compositor.create_container_visual()?;
         Ok(Self {
             id: panel_manager.get_next_id(),
-            subpabel: None,
+            panel: None,
             visual,
         })
     }
     pub fn handle(&self) -> ButtonPanelHandle {
         ButtonPanelHandle { id: self.id }
     }
-    pub fn add_subpanel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+    pub fn add_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
         self.visual
             .children()?
             .insert_at_top(panel.visual().clone())?;
-        self.subpabel = Some(Box::new(panel));
+        self.panel = Some(Box::new(panel));
         Ok(())
     }
-    pub fn subpanel(&mut self) -> winrt::Result<&mut (dyn Control + 'static)> {
-        self.subpabel
+    pub fn panel(&mut self) -> winrt::Result<&mut (dyn Control + 'static)> {
+        self.panel
             .as_deref_mut()
             .ok_or(winrt_error("no panel in ButtonPanel"))
     }
@@ -76,12 +74,12 @@ impl Panel for ButtonPanel {
 
     fn on_resize(&mut self) -> winrt::Result<()> {
         self.visual.set_size(self.visual.parent()?.size()?)?;
-        self.subpanel()?.on_resize()?;
+        self.panel()?.on_resize()?;
         Ok(())
     }
 
     fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        self.subpanel()?.on_idle(proxy)
+        self.panel()?.on_idle(proxy)
     }
 
     fn on_mouse_input(
@@ -104,7 +102,7 @@ impl Panel for ButtonPanel {
     fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             return Some(self.as_any_mut());
-        } else if let Some(p) = self.subpabel.as_mut() {
+        } else if let Some(p) = self.panel.as_mut() {
             p.get_panel(id)
         } else {
             None
@@ -114,7 +112,7 @@ impl Panel for ButtonPanel {
 
 impl Control for ButtonPanel {
     fn on_enable(&mut self, enable: bool) -> winrt::Result<()> {
-        self.subpanel()?.on_enable(enable)
+        self.panel()?.on_enable(enable)
     }
 
     fn on_set_focus(&mut self) -> winrt::Result<()> {

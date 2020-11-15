@@ -1,4 +1,4 @@
-//mod background_panel;
+mod background_panel;
 mod button_panel;
 mod control;
 mod game_field_panel;
@@ -9,6 +9,7 @@ mod ribbon_panel;
 mod text_panel;
 mod window_target;
 
+use background_panel::BackgroundPanel;
 use button_panel::{ButtonPanel, ButtonPanelEvent};
 use control::ControlManager;
 use game_field_panel::{GameFieldPanel, GameFieldPanelEvent};
@@ -43,6 +44,7 @@ fn run() -> winrt::Result<()> {
     let empty_panel = EmptyPanel::new(&mut panel_manager)?;
     let mut vribbon_panel = Ribbon::new(&mut panel_manager, RibbonOrientation::Vertical)?;
     let mut hribbon_panel = Ribbon::new(&mut panel_manager, RibbonOrientation::Horizontal)?;
+    let mut background_panel = BackgroundPanel::new(&mut panel_manager)?;
 
     //
     // Initialize panels
@@ -54,14 +56,15 @@ fn run() -> winrt::Result<()> {
     let score_handle = score_panel.handle();
     let undo_button_handle = undo_button_panel.handle();
     // Join panels into tree
-    undo_button_panel.add_subpanel(undo_button_text_panel)?;
+    undo_button_panel.add_panel(undo_button_text_panel)?;
     hribbon_panel.add_panel(undo_button_panel, 1.)?;
     hribbon_panel.add_panel(score_panel, 1.)?;
     hribbon_panel.add_panel(empty_panel, 1.)?;
     vribbon_panel.add_panel(hribbon_panel, 1.)?;
     vribbon_panel.add_panel(game_field_panel, 4.)?;
+    background_panel.add_panel(vribbon_panel)?;
 
-    panel_manager.set_root_panel(vribbon_panel);
+    panel_manager.set_root_panel(background_panel);
 
     let mut control_manager = ControlManager::new();
     control_manager.add_control(undo_button_handle.clone());

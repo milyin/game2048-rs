@@ -68,6 +68,18 @@ pub struct PanelGlobals {
     composition_graphics_device: CompositionGraphicsDevice,
 }
 
+impl PanelGlobals {
+    pub fn compositor(&self) -> &Compositor {
+        &self.compositor
+    }
+    pub fn canvas_device(&self) -> &CanvasDevice {
+        &self.canvas_device
+    }
+    pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
+        &self.composition_graphics_device
+    }
+}
+
 pub trait Handle {
     fn id(&self) -> usize;
 }
@@ -298,15 +310,6 @@ impl GameWindow {
     }
     pub fn window(&mut self) -> &mut Window {
         &mut self.window
-    }
-    pub fn compositor(&self) -> &Compositor {
-        &self.compositor
-    }
-    pub fn canvas_device(&self) -> &CanvasDevice {
-        &self.canvas_device
-    }
-    pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
-        &self.composition_graphics_device
     }
     pub fn visual(&self) -> &ContainerVisual {
         &self.root
