@@ -20,7 +20,7 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    game_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager},
+    main_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager},
 };
 
 #[derive(Copy, Clone)]

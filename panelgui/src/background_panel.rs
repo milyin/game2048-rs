@@ -8,7 +8,7 @@ use bindings::windows::{
     },
 };
 
-use crate::game_window::{Handle, Panel, PanelGlobals, PanelHandle, PanelManager};
+use crate::main_window::{Handle, Panel, PanelGlobals, PanelHandle, PanelManager};
 
 pub struct BackgroundPanel {
     id: usize,
@@ -118,7 +118,7 @@ impl Panel for BackgroundPanel {
         Ok(())
     }
 
-    fn on_idle(&mut self, _proxy: &crate::game_window::PanelEventProxy) -> winrt::Result<()> {
+    fn on_idle(&mut self, _proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
         Ok(())
     }
 
@@ -127,7 +127,7 @@ impl Panel for BackgroundPanel {
         position: bindings::windows::foundation::numerics::Vector2,
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
-        proxy: &crate::game_window::PanelEventProxy,
+        proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<bool> {
         if let Some(p) = self.panel() {
             p.on_mouse_input(position, button, state, proxy)
@@ -139,7 +139,7 @@ impl Panel for BackgroundPanel {
     fn on_keyboard_input(
         &mut self,
         input: winit::event::KeyboardInput,
-        proxy: &crate::game_window::PanelEventProxy,
+        proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<bool> {
         if let Some(p) = self.panel() {
             p.on_keyboard_input(input, proxy)

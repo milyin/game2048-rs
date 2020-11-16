@@ -12,7 +12,7 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    game_window::{
+    main_window::{
         winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle, PanelManager,
     },
 };

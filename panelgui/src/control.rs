@@ -1,8 +1,6 @@
-use std::any::{Any, TypeId};
-
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 
-use crate::game_window::{Handle, Panel, PanelEvent, PanelEventProxy, PanelManager};
+use crate::main_window::{Handle, Panel, PanelEvent, PanelEventProxy, PanelManager};
 
 pub enum ControlEvent {
     Enable(bool),
@@ -50,8 +48,10 @@ pub trait ControlHandle: Handle {
     fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut dyn Control>;
 }
 
+type ControlHandles = Vec<Box<dyn ControlHandle>>;
+
 pub struct ControlManager {
-    controls: Vec<Box<dyn ControlHandle>>,
+    controls: ControlHandles,
 }
 
 impl ControlManager {
@@ -67,7 +67,7 @@ impl ControlManager {
         &mut self,
         evt: &mut Event<PanelEvent>,
         panel_manager: &mut PanelManager,
-        proxy: &PanelEventProxy,
+        _proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
         match evt {
             Event::UserEvent(ref mut e) => {
@@ -87,7 +87,7 @@ impl ControlManager {
                                             self.focus_set(panel_manager, h.id())?;
                                         }
                                         ControlEvent::FocusClear => {
-                                            self.focus_clear(panel_manager, h.id())?;
+                                            self.focus_clear(panel_manager)?;
                                         }
                                         ControlEvent::Enable(enable) => {
                                             self.enable(panel_manager, h.id(), enable)?;
@@ -162,7 +162,7 @@ impl ControlManager {
     }
 
     fn enable(
-        &mut self,
+        &self,
         panel_manager: &mut PanelManager,
         panel_id: usize,
         enable: bool,
@@ -174,7 +174,7 @@ impl ControlManager {
                     if c.is_focused()? && !enable {
                         focus_next = true;
                     }
-                    c.on_enable(enable);
+                    c.on_enable(enable)?;
                 }
             }
         }
@@ -184,25 +184,17 @@ impl ControlManager {
         Ok(())
     }
 
-    fn focus_clear(
-        &mut self,
-        panel_manager: &mut PanelManager,
-        panel_id: usize,
-    ) -> winrt::Result<()> {
+    fn focus_clear(&self, panel_manager: &mut PanelManager) -> winrt::Result<bool> {
         for h in &self.controls {
             if let Some(c) = h.as_control(panel_manager.root_panel()?) {
                 c.on_clear_focus()?;
             }
         }
-        Ok(())
+        Ok(true)
     }
 
-    fn focus_set(
-        &mut self,
-        panel_manager: &mut PanelManager,
-        panel_id: usize,
-    ) -> winrt::Result<()> {
-        self.focus_clear(panel_manager, panel_id)?;
+    fn focus_set(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
+        self.focus_clear(panel_manager)?;
         for h in &self.controls {
             if let Some(c) = h.as_control(panel_manager.root_panel()?) {
                 if c.id() == panel_id {
@@ -241,21 +233,13 @@ impl ControlManager {
         Ok(())
     }
 
-    fn focus_next(
-        &mut self,
-        panel_manager: &mut PanelManager,
-        panel_id: usize,
-    ) -> winrt::Result<()> {
-        self.focus_clear(panel_manager, panel_id)?;
+    fn focus_next(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
+        self.focus_clear(panel_manager)?;
         Self::focus_next_impl(self.controls.iter(), panel_manager, panel_id)
     }
 
-    fn focus_prev(
-        &mut self,
-        panel_manager: &mut PanelManager,
-        panel_id: usize,
-    ) -> winrt::Result<()> {
-        self.focus_clear(panel_manager, panel_id)?;
+    fn focus_prev(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
+        self.focus_clear(panel_manager)?;
         Self::focus_next_impl(self.controls.iter().rev(), panel_manager, panel_id)
     }
 }

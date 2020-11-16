@@ -1,16 +1,13 @@
 use std::any::Any;
 
 use crate::window_target::CompositionDesktopWindowTargetSource;
+use bindings::microsoft::graphics::canvas::ui::composition::CanvasComposition;
 use bindings::microsoft::graphics::canvas::CanvasDevice;
 use bindings::windows::foundation::numerics::Vector2;
 use bindings::windows::ui::composition::desktop::DesktopWindowTarget;
 use bindings::windows::ui::composition::CompositionGraphicsDevice;
 use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
-use bindings::{
-    microsoft::graphics::canvas::ui::composition::CanvasComposition,
-    windows::foundation::numerics::Vector3,
-};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, MouseButton, WindowEvent},
@@ -275,7 +272,7 @@ impl PanelManager {
     }
 }
 
-pub struct GameWindow {
+pub struct MainWindow {
     compositor: Compositor,
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
@@ -286,7 +283,7 @@ pub struct GameWindow {
     window: Window,
 }
 
-impl GameWindow {
+impl MainWindow {
     pub fn new() -> winrt::Result<Self> {
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
         let proxy = PanelEventProxy {

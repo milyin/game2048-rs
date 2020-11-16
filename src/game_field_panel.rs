@@ -16,12 +16,11 @@ use bindings::{
     windows::ui::Color, windows::ui::ColorHelper, windows::ui::Colors,
 };
 use model::field::{Field, Origin, Side};
+use panelgui::main_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager};
 use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
-
-use crate::game_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager};
 
 #[derive(PartialEq)]
 pub enum GameFieldPanelEvent {

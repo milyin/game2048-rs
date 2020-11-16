@@ -1,38 +1,28 @@
-mod background_panel;
-mod button_panel;
-mod control;
-mod game_field_panel;
-mod game_window;
-mod interop;
-mod numerics;
-mod ribbon_panel;
-mod text_panel;
-mod window_target;
-
-use background_panel::BackgroundPanel;
-use button_panel::{ButtonPanel, ButtonPanelEvent};
-use control::{Control, ControlManager};
 use game_field_panel::{GameFieldPanel, GameFieldPanelEvent};
-use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
+use panelgui::{
+    background_panel::BackgroundPanel,
+    button_panel::{ButtonPanel, ButtonPanelEvent},
+    control::{Control, ControlManager},
+    interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
+    main_window::PanelHandle,
+    main_window::{MainWindow, PanelEventProxy, PanelManager},
+    ribbon_panel::Ribbon,
+    ribbon_panel::RibbonOrientation,
+    text_panel::TextPanel,
+};
 
-use ribbon_panel::{Ribbon, RibbonOrientation};
-use text_panel::TextPanel;
+mod game_field_panel;
+
 use winit::event::Event;
-
-use game_window::{EmptyPanel, GameWindow, PanelEventProxy, PanelHandle, PanelManager};
 
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
     let _controller = create_dispatcher_queue_controller_for_current_thread()?;
 
     //
-    // Construct model
-    //
-    let mut score = 0 as usize;
-    //
     // Construct GUI
     //
-    let mut window = GameWindow::new()?;
+    let mut window = MainWindow::new()?;
     window.window().set_title("2048");
     let mut panel_manager = window.create_panel_manager()?;
 
@@ -75,23 +65,21 @@ fn run() -> winrt::Result<()> {
     control_manager.add_control(undo_button_handle.clone());
     control_manager.add_control(reset_button_handle.clone());
 
-    let update_buttons = move |panel_manager: &mut PanelManager,
-                               control_manager: &mut ControlManager,
-                               proxy: &PanelEventProxy|
-          -> winrt::Result<()> {
-        let game_field = panel_manager.panel(game_field_handle)?;
-        let can_undo = game_field.can_undo();
-        let score = game_field.get_score();
-        panel_manager
-            .panel(undo_button_handle)?
-            .enable(proxy, can_undo)?;
-        panel_manager
-            .panel(score_handle)?
-            .set_text(score.to_string())?;
-        Ok(())
-    };
+    let update_buttons =
+        move |panel_manager: &mut PanelManager, proxy: &PanelEventProxy| -> winrt::Result<()> {
+            let game_field = panel_manager.panel(game_field_handle)?;
+            let can_undo = game_field.can_undo();
+            let score = game_field.get_score();
+            panel_manager
+                .panel(undo_button_handle)?
+                .enable(proxy, can_undo)?;
+            panel_manager
+                .panel(score_handle)?
+                .set_text(score.to_string())?;
+            Ok(())
+        };
 
-    update_buttons(&mut panel_manager, &mut control_manager, window.proxy()?)?;
+    update_buttons(&mut panel_manager, window.proxy()?)?;
 
     window.run(move |mut event, proxy| {
         let _ = panel_manager.process_event(&event, proxy)?
@@ -102,7 +90,7 @@ fn run() -> winrt::Result<()> {
             } else if reset_button_handle.extract_event(e) == Some(ButtonPanelEvent::Pressed) {
                 panel_manager.panel(game_field_handle)?.reset(proxy)?;
             } else if game_field_handle.extract_event(e) == Some(GameFieldPanelEvent::Changed) {
-                update_buttons(&mut panel_manager, &mut control_manager, proxy)?;
+                update_buttons(&mut panel_manager, proxy)?;
             }
         }
         Ok(())

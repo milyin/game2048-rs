@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::{Compositor, ContainerVisual},
 };
 
-use crate::game_window::{Panel, PanelEventProxy, PanelManager};
+use crate::main_window::{Panel, PanelEventProxy, PanelManager};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
