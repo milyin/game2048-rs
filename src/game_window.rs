@@ -42,15 +42,15 @@ pub trait Panel {
         _button: MouseButton,
         _state: ElementState,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
-        Ok(())
+    ) -> winrt::Result<bool> {
+        Ok(false)
     }
     fn on_keyboard_input(
         &mut self,
-        input: KeyboardInput,
+        _input: KeyboardInput,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
-        Ok(())
+    ) -> winrt::Result<bool> {
+        Ok(false)
     }
     fn on_resize_default(&mut self) -> winrt::Result<()> {
         self.visual().set_size(self.visual().parent()?.size()?)
@@ -227,13 +227,14 @@ impl PanelManager {
         &mut self,
         evt: &Event<PanelEvent>,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
-        match evt {
+    ) -> winrt::Result<bool> {
+        let consumed = match evt {
             Event::WindowEvent {
                 event: WindowEvent::Resized(_),
                 ..
             } => {
                 self.root_panel()?.on_resize()?;
+                false
             }
             Event::WindowEvent {
                 event: WindowEvent::CursorMoved { position, .. },
@@ -241,6 +242,7 @@ impl PanelManager {
             } => {
                 self.cursor_position = *position;
                 // TODO: on mouse move handle here
+                false
             }
             Event::WindowEvent {
                 event:
@@ -265,10 +267,11 @@ impl PanelManager {
             }
             Event::MainEventsCleared => {
                 self.root_panel()?.on_idle(&proxy)?;
+                false
             }
-            _ => {}
-        }
-        Ok(())
+            _ => false,
+        };
+        Ok(consumed)
     }
 }
 

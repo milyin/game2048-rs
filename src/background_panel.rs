@@ -128,21 +128,23 @@ impl Panel for BackgroundPanel {
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
         proxy: &crate::game_window::PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> winrt::Result<bool> {
         if let Some(p) = self.panel() {
-            p.on_mouse_input(position, button, state, proxy)?;
+            p.on_mouse_input(position, button, state, proxy)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     fn on_keyboard_input(
         &mut self,
         input: winit::event::KeyboardInput,
         proxy: &crate::game_window::PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> winrt::Result<bool> {
         if let Some(p) = self.panel() {
-            p.on_keyboard_input(input, proxy)?;
+            p.on_keyboard_input(input, proxy)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 }

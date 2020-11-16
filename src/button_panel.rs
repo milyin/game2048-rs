@@ -197,12 +197,14 @@ impl Panel for ButtonPanel {
         button: MouseButton,
         state: ElementState,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
-        if button == MouseButton::Left && state == ElementState::Pressed {
+    ) -> winrt::Result<bool> {
+        if self.is_enabled()? && button == MouseButton::Left && state == ElementState::Pressed {
             self.set_focus(proxy)?;
             self.press(proxy)?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -223,31 +225,30 @@ impl Panel for ButtonPanel {
         &mut self,
         input: KeyboardInput,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
-        if input.state == ElementState::Pressed {
-            if let Some(code) = input.virtual_keycode {
-                match code {
-                    VirtualKeyCode::Escape => {
-                        self.clear_focus(proxy)?;
-                    }
-                    VirtualKeyCode::Tab => {
-                        // TODO: Check WindowEvent::ModifiersChanged modifiers for shift-tab
-                        if self.is_focused()? {
+    ) -> winrt::Result<bool> {
+        if self.is_focused()? && self.is_enabled()? {
+            if input.state == ElementState::Pressed {
+                if let Some(code) = input.virtual_keycode {
+                    match code {
+                        VirtualKeyCode::Escape => {
+                            self.clear_focus(proxy)?;
+                            return Ok(true);
+                        }
+                        VirtualKeyCode::Tab => {
+                            // TODO: Check WindowEvent::ModifiersChanged modifiers for shift-tab
                             self.set_focus_to_next(proxy)?;
+                            return Ok(true);
                         }
-                    }
-
-                    VirtualKeyCode::Return => {
-                        if self.is_enabled()? && self.is_focused()? {
+                        VirtualKeyCode::Return => {
                             self.press(proxy)?;
+                            return Ok(true);
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
-
-        Ok(())
+        Ok(false)
     }
 }
 

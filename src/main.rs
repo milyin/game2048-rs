@@ -94,8 +94,8 @@ fn run() -> winrt::Result<()> {
     update_buttons(&mut panel_manager, &mut control_manager, window.proxy()?)?;
 
     window.run(move |mut event, proxy| {
-        panel_manager.process_event(&event, proxy)?;
-        control_manager.process_event(&mut event, &mut panel_manager, proxy)?;
+        let _ = panel_manager.process_event(&event, proxy)?
+            || control_manager.process_event(&mut event, &mut panel_manager, proxy)?;
         if let Event::UserEvent(ref mut e) = event {
             if undo_button_handle.extract_event(e) == Some(ButtonPanelEvent::Pressed) {
                 panel_manager.panel(game_field_handle)?.undo(proxy)?;

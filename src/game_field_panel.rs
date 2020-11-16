@@ -74,7 +74,7 @@ impl Panel for GameFieldPanel {
         &mut self,
         input: KeyboardInput,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> winrt::Result<bool> {
         if input.state == ElementState::Pressed {
             if let Some(side) = match input.virtual_keycode {
                 Some(VirtualKeyCode::Left) => Some(Side::Left),
@@ -84,11 +84,13 @@ impl Panel for GameFieldPanel {
                 _ => None,
             } {
                 self.swipe(side, proxy)?;
+                return Ok(true);
             } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
                 self.undo(proxy)?;
+                return Ok(true);
             }
         }
-        Ok(())
+        Ok(false)
     }
 }
 

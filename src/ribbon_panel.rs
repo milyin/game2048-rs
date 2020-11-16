@@ -128,7 +128,7 @@ impl Panel for Ribbon {
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> winrt::Result<bool> {
         for p in &mut self.cells {
             let offset = p.container.offset()?;
             let size = p.container.size()?;
@@ -137,11 +137,10 @@ impl Panel for Ribbon {
                 y: position.y - offset.y,
             };
             if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
-                p.panel.on_mouse_input(position, button, state, proxy)?;
-                break;
+                return p.panel.on_mouse_input(position, button, state, proxy);
             }
         }
-        Ok(())
+        Ok(false)
     }
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -163,10 +162,12 @@ impl Panel for Ribbon {
         &mut self,
         input: winit::event::KeyboardInput,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> winrt::Result<bool> {
         for p in &mut self.cells {
-            p.panel.on_keyboard_input(input, proxy)?;
+            if p.panel.on_keyboard_input(input, proxy)? {
+                return Ok(true);
+            }
         }
-        Ok(())
+        Ok(false)
     }
 }
