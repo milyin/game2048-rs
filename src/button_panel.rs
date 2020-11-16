@@ -1,21 +1,41 @@
-use std::any::Any;
+use std::{any::Any, collections::HashMap};
 
-use bindings::windows::ui::composition::ContainerVisual;
-use winit::event::{ElementState, MouseButton};
+use bindings::windows::{
+    foundation::numerics::Vector2,
+    ui::{
+        composition::{CompositionShape, ContainerVisual, ShapeVisual},
+        Colors,
+    },
+};
+use float_ord::FloatOrd;
+use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    game_window::{winrt_error, Handle, Panel, PanelEventProxy, PanelHandle, PanelManager},
+    game_window::{
+        winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle, PanelManager,
+    },
 };
 
 #[derive(PartialEq)]
 pub enum ButtonPanelEvent {
     Pressed,
 }
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+enum ButtonMode {
+    Norm,
+    Disabled,
+    Focused,
+}
 pub struct ButtonPanel {
     id: usize,
+    globals: PanelGlobals,
     panel: Option<Box<dyn Control>>,
     visual: ContainerVisual,
+    background: ShapeVisual,
+    shapes: HashMap<ButtonMode, (Vector2, CompositionShape)>,
+    enabled: bool,
+    focused: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -39,12 +59,19 @@ impl ControlHandle for ButtonPanelHandle {
 
 impl ButtonPanel {
     pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
-        let compositor = panel_manager.compositor().clone();
-        let visual = compositor.create_container_visual()?;
+        let globals = panel_manager.get_globals();
+        let visual = globals.compositor().create_container_visual()?;
+        let background = globals.compositor().create_shape_visual()?;
+        visual.children()?.insert_at_bottom(background.clone())?;
         Ok(Self {
             id: panel_manager.get_next_id(),
+            globals,
             panel: None,
             visual,
+            background,
+            shapes: HashMap::new(),
+            enabled: true,
+            focused: false,
         })
     }
     pub fn handle(&self) -> ButtonPanelHandle {
@@ -62,6 +89,87 @@ impl ButtonPanel {
             .as_deref_mut()
             .ok_or(winrt_error("no panel in ButtonPanel"))
     }
+    fn press(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        if self.enabled {
+            proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
+        }
+        Ok(())
+    }
+    fn get_shape(&mut self, mode: ButtonMode) -> winrt::Result<CompositionShape> {
+        let size = self.background.size()?;
+        if let Some((shape_size, shape)) = self.shapes.get(&mode) {
+            if *shape_size == size {
+                return Ok(shape.clone());
+            }
+        }
+        let shape = Self::create_shape(&self.globals, mode, &size)?;
+        self.shapes.insert(mode, (size, shape.clone()));
+        Ok(shape)
+    }
+    fn create_shape(
+        globals: &PanelGlobals,
+        mode: ButtonMode,
+        size: &Vector2,
+    ) -> winrt::Result<CompositionShape> {
+        let container_shape = globals.compositor().create_container_shape()?;
+        let round_rect_geometry = globals.compositor().create_rounded_rectangle_geometry()?;
+        let offset = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
+        round_rect_geometry.set_corner_radius(Vector2 {
+            x: offset,
+            y: offset,
+        })?;
+        round_rect_geometry.set_size(Vector2 {
+            x: size.x - offset * 2.,
+            y: size.y - offset * 2.,
+        })?;
+        round_rect_geometry.set_offset(Vector2 {
+            x: offset,
+            y: offset,
+        })?;
+        let (border_color, border_thickness) = match mode {
+            // ButtonMode::Norm => (Colors::black()?, 1.),
+            // ButtonMode::Disabled => (Colors::gray()?, 1.),
+            // ButtonMode::Focused => (Colors::black()?, 3.),
+            ButtonMode::Norm => (Colors::white()?, 1.),
+            ButtonMode::Disabled => (Colors::white()?, 1.),
+            ButtonMode::Focused => (Colors::black()?, 1.),
+        };
+        let fill_brush = globals
+            .compositor()
+            .create_color_brush_with_color(Colors::white()?)?;
+        let stroke_brush = globals
+            .compositor()
+            .create_color_brush_with_color(border_color)?;
+        let rect = globals
+            .compositor()
+            .create_sprite_shape_with_geometry(round_rect_geometry)?;
+        rect.set_fill_brush(fill_brush)?;
+        rect.set_stroke_brush(stroke_brush)?;
+        rect.set_stroke_thickness(border_thickness)?;
+        rect.set_offset(Vector2 { x: 0., y: 0. })?;
+        container_shape.shapes()?.append(rect)?;
+        let shape = container_shape.into();
+        Ok(shape)
+    }
+    fn get_mode(&self) -> ButtonMode {
+        if self.enabled {
+            if self.focused {
+                ButtonMode::Focused
+            } else {
+                ButtonMode::Norm
+            }
+        } else {
+            ButtonMode::Disabled
+        }
+    }
+    fn redraw_background(&mut self) -> winrt::Result<()> {
+        self.background.set_size(self.visual.size()?)?;
+        self.background.shapes()?.clear()?;
+        self.background
+            .shapes()?
+            .append(self.get_shape(self.get_mode())?)?;
+        Ok(())
+    }
 }
 
 impl Panel for ButtonPanel {
@@ -74,6 +182,7 @@ impl Panel for ButtonPanel {
 
     fn on_resize(&mut self) -> winrt::Result<()> {
         self.visual.set_size(self.visual.parent()?.size()?)?;
+        self.redraw_background()?;
         self.panel()?.on_resize()?;
         Ok(())
     }
@@ -90,7 +199,8 @@ impl Panel for ButtonPanel {
         proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
         if button == MouseButton::Left && state == ElementState::Pressed {
-            proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
+            self.set_focus(proxy)?;
+            self.press(proxy)?;
         }
         Ok(())
     }
@@ -108,18 +218,64 @@ impl Panel for ButtonPanel {
             None
         }
     }
+
+    fn on_keyboard_input(
+        &mut self,
+        input: KeyboardInput,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        if input.state == ElementState::Pressed {
+            if let Some(code) = input.virtual_keycode {
+                match code {
+                    VirtualKeyCode::Escape => {
+                        self.clear_focus(proxy)?;
+                    }
+                    VirtualKeyCode::Tab => {
+                        // TODO: Check WindowEvent::ModifiersChanged modifiers for shift-tab
+                        if self.is_focused()? {
+                            self.set_focus_to_next(proxy)?;
+                        }
+                    }
+
+                    VirtualKeyCode::Return => {
+                        if self.is_enabled()? && self.is_focused()? {
+                            self.press(proxy)?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Control for ButtonPanel {
     fn on_enable(&mut self, enable: bool) -> winrt::Result<()> {
+        self.enabled = enable;
         self.panel()?.on_enable(enable)
     }
 
     fn on_set_focus(&mut self) -> winrt::Result<()> {
-        todo!()
+        self.focused = true;
+        self.redraw_background()
     }
 
     fn as_panel(&self) -> &dyn Panel {
         self
+    }
+
+    fn is_enabled(&self) -> winrt::Result<bool> {
+        Ok(self.enabled)
+    }
+
+    fn is_focused(&self) -> winrt::Result<bool> {
+        Ok(self.focused)
+    }
+
+    fn on_clear_focus(&mut self) -> winrt::Result<()> {
+        self.focused = false;
+        self.redraw_background()
     }
 }

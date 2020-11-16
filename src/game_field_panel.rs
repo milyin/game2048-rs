@@ -420,28 +420,6 @@ impl GameFieldPanel {
         self.move_tile_visual(from_x1, from_y1, x, y, n)
     }
 
-    /*    fn init_game_board(&mut self) -> winrt::Result<()> {
-            self.game_board_visual.set_size(Vector2 {
-                x: self.field.width() as f32 * TILE_SIZE.x,
-                y: self.field.height() as f32 * TILE_SIZE.y,
-            })?;
-            self.garbage_collect_tiles()?;
-            self.game_board_visual.children()?.remove_all()?;
-            //self.draw_game_board_border()?;
-            self.game_board_tiles.clear();
-            for x in 0..self.field.width() {
-                for y in 0..self.field.height() {
-                    if let Some(tile) = self.field.get(x, y) {
-                        let n = tile.get_n();
-                        let tile = self.create_tile_visual(x, y, n)?;
-                        self.game_board_tiles.insert((x, y), tile);
-                    }
-                }
-            }
-            Ok(())
-        }
-    */
-
     fn garbage_collect_tiles(&mut self) -> winrt::Result<()> {
         while let Some(tile) = self.removed_tiles.pop() {
             self.game_board_visual.children()?.remove(tile)?;

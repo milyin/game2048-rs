@@ -279,12 +279,16 @@ pub struct GameWindow {
     root: ContainerVisual,
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
+    proxy: Option<PanelEventProxy>,
     window: Window,
 }
 
 impl GameWindow {
     pub fn new() -> winrt::Result<Self> {
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
+        let proxy = PanelEventProxy {
+            proxy: event_loop.create_proxy(),
+        };
         let compositor = Compositor::new()?;
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         let target = window.create_window_target(&compositor, false)?;
@@ -310,6 +314,7 @@ impl GameWindow {
             root,
             _target: target,
             event_loop: Some(event_loop),
+            proxy: Some(proxy),
             window,
         })
     }
@@ -318,6 +323,15 @@ impl GameWindow {
     }
     pub fn visual(&self) -> &ContainerVisual {
         &self.root
+    }
+    pub fn proxy(&self) -> winrt::Result<&PanelEventProxy> {
+        if let Some(ref p) = self.proxy {
+            Ok(p)
+        } else {
+            Err(winrt_error(
+                "unexpected error: proxy should be in Window struct until event loop run",
+            ))
+        }
     }
 
     pub fn create_panel_manager(&self) -> winrt::Result<PanelManager> {

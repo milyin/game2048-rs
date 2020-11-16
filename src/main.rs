@@ -11,7 +11,7 @@ mod window_target;
 
 use background_panel::BackgroundPanel;
 use button_panel::{ButtonPanel, ButtonPanelEvent};
-use control::ControlManager;
+use control::{Control, ControlManager};
 use game_field_panel::{GameFieldPanel, GameFieldPanelEvent};
 use interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType};
 
@@ -19,7 +19,7 @@ use ribbon_panel::{Ribbon, RibbonOrientation};
 use text_panel::TextPanel;
 use winit::event::Event;
 
-use game_window::{EmptyPanel, GameWindow, PanelHandle, PanelManager};
+use game_window::{EmptyPanel, GameWindow, PanelEventProxy, PanelHandle, PanelManager};
 
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
@@ -76,32 +76,33 @@ fn run() -> winrt::Result<()> {
     control_manager.add_control(reset_button_handle.clone());
 
     let update_buttons = move |panel_manager: &mut PanelManager,
-                               control_manager: &mut ControlManager|
+                               control_manager: &mut ControlManager,
+                               proxy: &PanelEventProxy|
           -> winrt::Result<()> {
         let game_field = panel_manager.panel(game_field_handle)?;
         let can_undo = game_field.can_undo();
         let score = game_field.get_score();
-        control_manager
-            .with(panel_manager)
-            .enable(undo_button_handle, can_undo)?;
+        panel_manager
+            .panel(undo_button_handle)?
+            .enable(proxy, can_undo)?;
         panel_manager
             .panel(score_handle)?
             .set_text(score.to_string())?;
         Ok(())
     };
 
-    update_buttons(&mut panel_manager, &mut control_manager)?;
+    update_buttons(&mut panel_manager, &mut control_manager, window.proxy()?)?;
 
     window.run(move |mut event, proxy| {
         panel_manager.process_event(&event, proxy)?;
-        control_manager.process_event(&event, proxy)?;
+        control_manager.process_event(&mut event, &mut panel_manager, proxy)?;
         if let Event::UserEvent(ref mut e) = event {
             if undo_button_handle.extract_event(e) == Some(ButtonPanelEvent::Pressed) {
                 panel_manager.panel(game_field_handle)?.undo(proxy)?;
             } else if reset_button_handle.extract_event(e) == Some(ButtonPanelEvent::Pressed) {
                 panel_manager.panel(game_field_handle)?.reset(proxy)?;
             } else if game_field_handle.extract_event(e) == Some(GameFieldPanelEvent::Changed) {
-                update_buttons(&mut panel_manager, &mut control_manager)?;
+                update_buttons(&mut panel_manager, &mut control_manager, proxy)?;
             }
         }
         Ok(())
