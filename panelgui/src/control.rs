@@ -184,13 +184,13 @@ impl ControlManager {
         Ok(())
     }
 
-    fn focus_clear(&self, panel_manager: &mut PanelManager) -> winrt::Result<bool> {
+    fn focus_clear(&self, panel_manager: &mut PanelManager) -> winrt::Result<()> {
         for h in &self.controls {
             if let Some(c) = h.as_control(panel_manager.root_panel()?) {
                 c.on_clear_focus()?;
             }
         }
-        Ok(true)
+        Ok(())
     }
 
     fn focus_set(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
