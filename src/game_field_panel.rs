@@ -15,12 +15,14 @@ use bindings::{
     windows::ui::composition::ContainerVisual, windows::ui::composition::Visual,
     windows::ui::Color, windows::ui::ColorHelper, windows::ui::Colors,
 };
+use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
 use panelgui::main_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager};
 use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
+const MIN_DRAG_MOUSE_MOVE: FloatOrd<f32> = FloatOrd(5.);
 
 #[derive(PartialEq)]
 pub enum GameFieldPanelEvent {
@@ -40,6 +42,7 @@ pub struct GameFieldPanel {
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
     field: Field,
     score: u32,
+    mouse_pressed_pos: Option<Vector2>,
 }
 
 #[derive(Copy, Clone)]
@@ -91,6 +94,48 @@ impl Panel for GameFieldPanel {
         }
         Ok(false)
     }
+
+    fn on_mouse_input(
+        &mut self,
+        position: Vector2,
+        _button: winit::event::MouseButton,
+        state: ElementState,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool> {
+        if state == ElementState::Pressed {
+            self.mouse_pressed_pos = Some(position);
+        } else if state == ElementState::Released {
+            if let Some(prev_position) = self.mouse_pressed_pos.take() {
+                let mut dx = position.x - prev_position.x;
+                let mut dy = position.y - prev_position.y;
+                let mut dx_abs = FloatOrd(dx.abs());
+                let mut dy_abs = FloatOrd(dy.abs());
+                if dx_abs < MIN_DRAG_MOUSE_MOVE && dy_abs < MIN_DRAG_MOUSE_MOVE {
+                    let size = self.visual().size()?;
+                    let cx = size.x / 2.;
+                    let cy = size.y / 2.;
+                    dx = position.x - cx;
+                    dy = position.y - cy;
+                    dx_abs = FloatOrd(dx.abs());
+                    dy_abs = FloatOrd(dy.abs());
+                }
+                if dx_abs > dy_abs {
+                    if dx.is_sign_positive() {
+                        self.swipe(Side::Right, proxy)?;
+                    } else {
+                        self.swipe(Side::Left, proxy)?;
+                    }
+                } else {
+                    if dy.is_sign_positive() {
+                        self.swipe(Side::Down, proxy)?;
+                    } else {
+                        self.swipe(Side::Up, proxy)?;
+                    }
+                }
+            }
+        }
+        Ok(true)
+    }
 }
 
 impl GameFieldPanel {
@@ -134,6 +179,7 @@ impl GameFieldPanel {
             tile_text_layouts: HashMap::new(),
             field,
             score,
+            mouse_pressed_pos: None,
         };
         game_field.animate_field()?; // TODO: separate 'new' and 'OnInit'
         Ok(game_field)

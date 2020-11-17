@@ -10,3 +10,4 @@ winrt = "0.7.2"
 bindings = { path = "bindings" }
 model = { path = "model" }
 panelgui = { path = "panelgui" }
+float-ord = "0.2"
