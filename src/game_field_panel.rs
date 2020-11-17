@@ -208,6 +208,7 @@ impl GameFieldPanel {
         if self.field.can_undo() {
             self.score -= self.field.undo();
             self.animate_field()?;
+            self.field.hold_all(); // do not allow undo undo
             proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         }
         Ok(())

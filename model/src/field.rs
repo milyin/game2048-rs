@@ -266,15 +266,15 @@ impl Field {
                     }
                     Some(Tile(level, Moved(from_x, from_y))) => {
                         let index = self.index_from_side(Up, from_x, from_y);
-                        *arr.get_mut(index).unwrap() = Some(Tile(level, Hold(from_x, from_y)));
+                        *arr.get_mut(index).unwrap() = Some(Tile(level, Moved(x, y)));
                     }
                     tile @ Some(Tile(_, Merged(_, _))) => {
                         score += tile.unwrap().get_n();
                         if let Some(Tile(level, Merged(a, b))) = tile {
                             let index_a = self.index_from_side(Up, a.0, a.1);
                             let index_b = self.index_from_side(Up, b.0, b.1);
-                            *arr.get_mut(index_a).unwrap() = Some(Tile(level - 1, Hold(a.0, a.1)));
-                            *arr.get_mut(index_b).unwrap() = Some(Tile(level - 1, Hold(b.0, b.1)));
+                            *arr.get_mut(index_a).unwrap() = Some(Tile(level - 1, Moved(x, y)));
+                            *arr.get_mut(index_b).unwrap() = Some(Tile(level - 1, Moved(x, y)));
                         }
                     }
                     _ => {}
