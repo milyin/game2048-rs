@@ -1,4 +1,9 @@
+use bindings::windows::{
+    foundation::{IPropertyValue, PropertyValue},
+    storage::{AppDataPaths, ApplicationData, ApplicationDataCreateDisposition},
+};
 use game_field_panel::{GameFieldPanel, GameFieldPanelEvent};
+use model::field::Field;
 use panelgui::{
     background_panel::BackgroundPanel,
     button_panel::{ButtonPanel, ButtonPanelEvent},
@@ -14,10 +19,49 @@ use panelgui::{
 mod game_field_panel;
 
 use winit::event::Event;
+use winrt::TryInto;
+use winrt::{HString, Object};
+
+const CONTAINER_NAME: &str = "Game";
+const CONTAINER_SETTING_FIELD: &str = "Field";
 
 fn run() -> winrt::Result<()> {
     ro_initialize(RoInitType::MultiThreaded)?;
     let _controller = create_dispatcher_queue_controller_for_current_thread()?;
+
+    //
+    // Read storage
+    //
+    //let app_data = ApplicationData::current()?;
+    //let roaming_settings = app_data.roaming_settings()?;
+    //let container = roaming_settings
+    //     .create_container(CONTAINER_NAME, ApplicationDataCreateDisposition::Always)?;
+    // if let Ok(value) = container.values()?.lookup(CONTAINER_SETTING_FIELD) {
+    //     let q: IPropertyValue = value.try_into()?;
+    //     let s = q.get_string()?;
+    //     dbg!(&s);
+    //     //        let pv: PropertyValue = Box::new(value).try_into()?;
+    //     //if let Ok(pv) = value.
+    // }
+    // let value = PropertyValue::create_string("FOO")?;
+    // container.values()?.insert(CONTAINER_SETTING_FIELD, value)?;
+    /*    let value =
+        if let Ok(value) = container.values()?.lookup(CONTAINER_SETTING_FIELD) {
+        } else {
+            let field = Field::new(4, 4);
+            let s = String::new();
+            let h = HString::new();
+            let o: Object = h.into();
+            container.values()?.insert(CONTAINER_SETTING_FIELD, s);
+        }
+
+        if let Ok(field) = roaming_settings.containers()?.lookup(CONTAINER_NAME) {
+        } else {
+        }
+    */
+    let app_data_paths = AppDataPaths::get_default()?;
+    let app_data_folder = app_data_paths.local_app_data()?;
+    
 
     //
     // Construct GUI
