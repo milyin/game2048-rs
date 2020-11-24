@@ -12,9 +12,7 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{
-        winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle, PanelManager,
-    },
+    main_window::{winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle},
 };
 
 #[derive(PartialEq)]
@@ -53,18 +51,18 @@ impl PanelHandle<ButtonPanel, ButtonPanelEvent> for ButtonPanelHandle {}
 
 impl ControlHandle for ButtonPanelHandle {
     fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut dyn Control> {
-        self.at(root_panel).map(|p| p as &mut dyn Control)
+        self.at(root_panel).ok().map(|p| p as &mut dyn Control)
     }
 }
 
 impl ButtonPanel {
-    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
-        let globals = panel_manager.get_globals();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let globals = globals.clone();
         let visual = globals.compositor().create_container_visual()?;
         let background = globals.compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
         Ok(Self {
-            id: panel_manager.get_next_id(),
+            id: globals.get_next_id(),
             globals,
             panel: None,
             visual,
@@ -180,11 +178,10 @@ impl Panel for ButtonPanel {
         self.visual.clone()
     }
 
-    fn on_resize(&mut self) -> winrt::Result<()> {
+    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
         self.visual.set_size(self.visual.parent()?.size()?)?;
         self.redraw_background()?;
-        self.panel()?.on_resize()?;
-        Ok(())
+        self.panel()?.on_resize(size, proxy)
     }
 
     fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
@@ -193,7 +190,6 @@ impl Panel for ButtonPanel {
 
     fn on_mouse_input(
         &mut self,
-        _position: bindings::windows::foundation::numerics::Vector2,
         button: MouseButton,
         state: ElementState,
         proxy: &PanelEventProxy,
@@ -211,11 +207,11 @@ impl Panel for ButtonPanel {
         self
     }
 
-    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             return Some(self.as_any_mut());
         } else if let Some(p) = self.panel.as_mut() {
-            p.get_panel(id)
+            p.find_panel(id)
         } else {
             None
         }
@@ -249,6 +245,22 @@ impl Panel for ButtonPanel {
             }
         }
         Ok(false)
+    }
+
+    fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.panel()?.on_init(proxy)
+    }
+
+    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.panel()?.on_mouse_move(position, proxy)
+    }
+
+    fn on_panel_event(
+        &mut self,
+        panel_event: &mut crate::main_window::PanelEvent,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        self.panel()?.on_panel_event(panel_event, proxy)
     }
 }
 

@@ -6,6 +6,7 @@ use bindings::{
         text::CanvasVerticalAlignment, ui::composition::CanvasComposition, CanvasDevice,
     },
     windows::{
+        foundation::numerics::Vector2,
         foundation::Size,
         graphics::directx::DirectXAlphaMode,
         graphics::directx::DirectXPixelFormat,
@@ -20,7 +21,7 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager},
+    main_window::{Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle},
 };
 
 #[derive(Copy, Clone)]
@@ -38,7 +39,7 @@ impl PanelHandle<TextPanel> for TextPanelHandle {}
 
 impl ControlHandle for TextPanelHandle {
     fn as_control<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut dyn Control> {
-        self.at(root_panel).map(|p| p as &mut dyn Control)
+        self.at(root_panel).ok().map(|p| p as &mut dyn Control)
     }
 }
 
@@ -55,16 +56,16 @@ pub struct TextPanel {
 }
 
 impl TextPanel {
-    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
-        let compositor = panel_manager.compositor().clone();
-        let canvas_device = panel_manager.canvas_device().clone();
-        let composition_graphics_device = panel_manager.composition_graphics_device().clone();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let compositor = globals.compositor().clone();
+        let canvas_device = globals.canvas_device().clone();
+        let composition_graphics_device = globals.composition_graphics_device().clone();
         let visual = compositor.create_sprite_visual()?;
         let surface = None;
         let enabled = true;
         let text_color = Colors::black()?;
         Ok(Self {
-            id: panel_manager.get_next_id(),
+            id: globals.get_next_id(),
             text: "".into(),
             enabled,
             text_color,
@@ -147,8 +148,8 @@ impl Panel for TextPanel {
         self.visual.clone().into()
     }
 
-    fn on_resize(&mut self) -> winrt::Result<()> {
-        self.visual.set_size(self.visual.parent()?.size()?)?;
+    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.visual.set_size(size)?;
         self.resize_surface()?;
         self.redraw_text()?;
         Ok(())
@@ -159,6 +160,51 @@ impl Panel for TextPanel {
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn std::any::Any> {
+        if self.id == id {
+            Some(self.as_any_mut())
+        } else {
+            None
+        }
+    }
+
+    fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.on_resize(&self.visual().parent()?.size()?, proxy)
+    }
+
+    fn on_mouse_move(
+        &mut self,
+        _position: &Vector2,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        Ok(())
+    }
+
+    fn on_mouse_input(
+        &mut self,
+        _button: winit::event::MouseButton,
+        _state: winit::event::ElementState,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool> {
+        Ok(false)
+    }
+
+    fn on_keyboard_input(
+        &mut self,
+        _input: winit::event::KeyboardInput,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool> {
+        Ok(false)
+    }
+
+    fn on_panel_event(
+        &mut self,
+        _panel_event: &mut crate::main_window::PanelEvent,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        Ok(())
     }
 }
 

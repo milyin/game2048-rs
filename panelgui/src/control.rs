@@ -1,6 +1,6 @@
-use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
-use crate::main_window::{Handle, Panel, PanelEvent, PanelEventProxy, PanelManager};
+use crate::main_window::{Handle, Panel, PanelEvent, PanelEventProxy};
 
 pub enum ControlEvent {
     Enable(bool),
@@ -63,82 +63,72 @@ impl ControlManager {
     pub fn add_control<T: ControlHandle + 'static>(&mut self, control_handle: T) {
         self.controls.push(Box::new(control_handle));
     }
-    pub fn process_event(
+
+    pub fn process_panel_event(
         &mut self,
-        evt: &mut Event<PanelEvent>,
-        panel_manager: &mut PanelManager,
+        panel_event: &mut PanelEvent,
+        root_panel: &mut dyn Panel,
         _proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        match evt {
-            Event::UserEvent(ref mut e) => {
-                for h in &self.controls {
-                    if h.id() == e.panel_id {
-                        if let Some(data) = e.data.take() {
-                            match data.downcast::<ControlEvent>() {
-                                Ok(control_event) => {
-                                    match *control_event {
-                                        ControlEvent::FocusNext => {
-                                            self.focus_next(panel_manager, h.id())?;
-                                        }
-                                        ControlEvent::FocusPrev => {
-                                            self.focus_prev(panel_manager, h.id())?;
-                                        }
-                                        ControlEvent::FocusSet => {
-                                            self.focus_set(panel_manager, h.id())?;
-                                        }
-                                        ControlEvent::FocusClear => {
-                                            self.focus_clear(panel_manager)?;
-                                        }
-                                        ControlEvent::Enable(enable) => {
-                                            self.enable(panel_manager, h.id(), enable)?;
-                                        }
-                                    }
-                                    return Ok(true);
+        for h in &self.controls {
+            if h.id() == panel_event.panel_id {
+                if let Some(data) = panel_event.data.take() {
+                    match data.downcast::<ControlEvent>() {
+                        Ok(control_event) => {
+                            match *control_event {
+                                ControlEvent::FocusNext => {
+                                    self.focus_next(root_panel, h.id())?;
                                 }
-                                Err(data) => {
-                                    e.data = Some(data);
+                                ControlEvent::FocusPrev => {
+                                    self.focus_prev(root_panel, h.id())?;
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        device_id: _,
-                        input,
-                        is_synthetic: _,
-                    },
-                ..
-            } => {
-                // TODO: process Shift-Tab
-                if input.state == ElementState::Pressed {
-                    if let Some(virtual_keycode) = input.virtual_keycode {
-                        if virtual_keycode == VirtualKeyCode::Tab {
-                            if let Some(panel_id) = self.get_focused_panel_id(panel_manager)? {
-                                self.focus_next(panel_manager, panel_id)?;
-                            } else if let Some(panel_id) =
-                                self.get_first_enabled_panel_id(panel_manager)?
-                            {
-                                self.focus_set(panel_manager, panel_id)?;
+                                ControlEvent::FocusSet => {
+                                    self.focus_set(root_panel, h.id())?;
+                                }
+                                ControlEvent::FocusClear => {
+                                    self.focus_clear(root_panel)?;
+                                }
+                                ControlEvent::Enable(enable) => {
+                                    self.enable(root_panel, h.id(), enable)?;
+                                }
                             }
                             return Ok(true);
                         }
+                        Err(data) => {
+                            panel_event.data = Some(data);
+                        }
                     }
                 }
             }
-            _ => {}
         }
         Ok(false)
     }
 
-    fn get_focused_panel_id(
-        &self,
-        panel_manager: &mut PanelManager,
-    ) -> winrt::Result<Option<usize>> {
+    pub fn process_keyboard_input(
+        &mut self,
+        input: KeyboardInput,
+        root_panel: &mut dyn Panel,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool> {
+        // TODO: process Shift-Tab
+        if input.state == ElementState::Pressed {
+            if let Some(virtual_keycode) = input.virtual_keycode {
+                if virtual_keycode == VirtualKeyCode::Tab {
+                    if let Some(panel_id) = self.get_focused_panel_id(root_panel)? {
+                        self.focus_next(root_panel, panel_id)?;
+                    } else if let Some(panel_id) = self.get_first_enabled_panel_id(root_panel)? {
+                        self.focus_set(root_panel, panel_id)?;
+                    }
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn get_focused_panel_id(&self, root_panel: &mut dyn Panel) -> winrt::Result<Option<usize>> {
         for h in &self.controls {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 if c.is_enabled()? && c.is_focused()? {
                     return Ok(Some(c.id()));
                 }
@@ -149,10 +139,10 @@ impl ControlManager {
 
     fn get_first_enabled_panel_id(
         &self,
-        panel_manager: &mut PanelManager,
+        root_panel: &mut dyn Panel,
     ) -> winrt::Result<Option<usize>> {
         for h in &self.controls {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 if c.is_enabled()? {
                     return Ok(Some(c.id()));
                 }
@@ -163,13 +153,13 @@ impl ControlManager {
 
     fn enable(
         &self,
-        panel_manager: &mut PanelManager,
+        root_panel: &mut dyn Panel,
         panel_id: usize,
         enable: bool,
     ) -> winrt::Result<()> {
         let mut focus_next = false;
         for h in &self.controls {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 if c.id() == panel_id {
                     if c.is_focused()? && !enable {
                         focus_next = true;
@@ -179,24 +169,24 @@ impl ControlManager {
             }
         }
         if focus_next {
-            self.focus_next(panel_manager, panel_id)?;
+            self.focus_next(root_panel, panel_id)?;
         }
         Ok(())
     }
 
-    fn focus_clear(&self, panel_manager: &mut PanelManager) -> winrt::Result<()> {
+    fn focus_clear(&self, root_panel: &mut dyn Panel) -> winrt::Result<()> {
         for h in &self.controls {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 c.on_clear_focus()?;
             }
         }
         Ok(())
     }
 
-    fn focus_set(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
-        self.focus_clear(panel_manager)?;
+    fn focus_set(&self, root_panel: &mut dyn Panel, panel_id: usize) -> winrt::Result<()> {
+        self.focus_clear(root_panel)?;
         for h in &self.controls {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 if c.id() == panel_id {
                     return c.on_set_focus();
                 }
@@ -207,13 +197,13 @@ impl ControlManager {
 
     fn focus_next_impl<'a>(
         iter: impl Iterator<Item = &'a Box<dyn ControlHandle>> + Clone,
-        panel_manager: &'a mut PanelManager,
+        root_panel: &'a mut dyn Panel,
         panel_id: usize,
     ) -> winrt::Result<()> {
         let mut found = false;
         let iter_first = iter.clone();
         for h in iter {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 if found {
                     if c.is_enabled()? {
                         return c.on_set_focus();
@@ -224,7 +214,7 @@ impl ControlManager {
             }
         }
         for h in iter_first {
-            if let Some(c) = h.as_control(panel_manager.root_panel()?) {
+            if let Some(c) = h.as_control(root_panel) {
                 if c.is_enabled()? {
                     return c.on_set_focus();
                 }
@@ -233,13 +223,13 @@ impl ControlManager {
         Ok(())
     }
 
-    fn focus_next(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
-        self.focus_clear(panel_manager)?;
-        Self::focus_next_impl(self.controls.iter(), panel_manager, panel_id)
+    fn focus_next(&self, root_panel: &mut dyn Panel, panel_id: usize) -> winrt::Result<()> {
+        self.focus_clear(root_panel)?;
+        Self::focus_next_impl(self.controls.iter(), root_panel, panel_id)
     }
 
-    fn focus_prev(&self, panel_manager: &mut PanelManager, panel_id: usize) -> winrt::Result<()> {
-        self.focus_clear(panel_manager)?;
-        Self::focus_next_impl(self.controls.iter().rev(), panel_manager, panel_id)
+    fn focus_prev(&self, root_panel: &mut dyn Panel, panel_id: usize) -> winrt::Result<()> {
+        self.focus_clear(root_panel)?;
+        Self::focus_next_impl(self.controls.iter().rev(), root_panel, panel_id)
     }
 }

@@ -7,8 +7,9 @@ use bindings::windows::{
         Colors,
     },
 };
+use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{Handle, Panel, PanelGlobals, PanelHandle, PanelManager};
+use crate::main_window::{winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle};
 
 pub struct BackgroundPanel {
     id: usize,
@@ -31,15 +32,14 @@ impl Handle for BackgroundPanelHandle {
 impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
-    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
-        let id = panel_manager.get_next_id();
-        let globals = panel_manager.get_globals();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let id = globals.get_next_id();
         let visual = globals.compositor().create_container_visual()?;
         let background = globals.compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
         Ok(Self {
             id,
-            globals,
+            globals: globals.clone(),
             visual,
             background,
             panel: None,
@@ -55,8 +55,10 @@ impl BackgroundPanel {
         self.panel = Some(Box::new(panel));
         Ok(())
     }
-    pub fn panel(&mut self) -> Option<&mut (dyn Panel + 'static)> {
-        self.panel.as_deref_mut()
+    pub fn panel(&mut self) -> winrt::Result<&mut (dyn Panel + 'static)> {
+        self.panel
+            .as_deref_mut()
+            .ok_or(winrt_error("Panel not added"))
     }
     fn redraw_background(&mut self) -> winrt::Result<()> {
         self.background.set_size(self.visual.size()?)?;
@@ -99,52 +101,56 @@ impl Panel for BackgroundPanel {
         self
     }
 
-    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             return Some(self.as_any_mut());
-        } else if let Some(p) = self.panel() {
-            p.get_panel(id)
+        } else if let Ok(p) = self.panel() {
+            p.find_panel(id)
         } else {
             None
         }
     }
 
-    fn on_resize(&mut self) -> winrt::Result<()> {
-        self.visual.set_size(self.visual.parent()?.size()?)?;
+    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.visual.set_size(size.clone())?;
         self.redraw_background()?;
-        if let Some(p) = self.panel() {
-            p.on_resize()?;
-        }
-        Ok(())
+        self.panel()?.on_resize(size, proxy)
     }
 
-    fn on_idle(&mut self, _proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
-        Ok(())
+    fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.panel()?.on_idle(proxy)
     }
 
     fn on_mouse_input(
         &mut self,
-        position: bindings::windows::foundation::numerics::Vector2,
-        button: winit::event::MouseButton,
-        state: winit::event::ElementState,
-        proxy: &crate::main_window::PanelEventProxy,
+        button: MouseButton,
+        state: ElementState,
+        proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        if let Some(p) = self.panel() {
-            p.on_mouse_input(position, button, state, proxy)
-        } else {
-            Ok(false)
-        }
+        self.panel()?.on_mouse_input(button, state, proxy)
     }
 
     fn on_keyboard_input(
         &mut self,
-        input: winit::event::KeyboardInput,
-        proxy: &crate::main_window::PanelEventProxy,
+        input: KeyboardInput,
+        proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        if let Some(p) = self.panel() {
-            p.on_keyboard_input(input, proxy)
-        } else {
-            Ok(false)
-        }
+        self.panel()?.on_keyboard_input(input, proxy)
+    }
+
+    fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.panel()?.on_init(proxy)
+    }
+
+    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.panel()?.on_mouse_move(position, proxy)
+    }
+
+    fn on_panel_event(
+        &mut self,
+        panel_event: &mut crate::main_window::PanelEvent,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        self.panel()?.on_panel_event(panel_event, proxy)
     }
 }

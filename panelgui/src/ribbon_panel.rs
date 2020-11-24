@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::{Compositor, ContainerVisual},
 };
 
-use crate::main_window::{Panel, PanelEventProxy, PanelManager};
+use crate::main_window::{Panel, PanelEventProxy, PanelGlobals};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -25,21 +25,20 @@ pub struct Ribbon {
     orientation: RibbonOrientation,
     cells: Vec<RibbonCell>,
     ribbon: ContainerVisual,
+    mouse_position: Option<Vector2>,
 }
 
 impl Ribbon {
-    pub fn new(
-        panel_manager: &mut PanelManager,
-        orientation: RibbonOrientation,
-    ) -> winrt::Result<Self> {
-        let compositor = panel_manager.compositor().clone();
+    pub fn new(globals: &PanelGlobals, orientation: RibbonOrientation) -> winrt::Result<Self> {
+        let compositor = globals.compositor().clone();
         let ribbon = compositor.create_container_visual()?;
         Ok(Self {
-            id: panel_manager.get_next_id(),
+            id: globals.get_next_id(),
             compositor,
             orientation,
             cells: Vec::new(),
             ribbon,
+            mouse_position: None,
         })
     }
     pub fn add_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
@@ -94,10 +93,25 @@ impl Ribbon {
             })?;
             pos += share;
         }
-        for p in &mut self.cells {
-            p.panel.on_resize()?;
-        }
         Ok(())
+    }
+
+    fn get_cell_by_mouse_position<'a>(
+        &'a mut self,
+        position: &Vector2,
+    ) -> winrt::Result<Option<(Vector2, &'a mut RibbonCell)>> {
+        for p in &mut self.cells {
+            let offset = p.container.offset()?;
+            let size = p.container.size()?;
+            let position = Vector2 {
+                x: position.x - offset.x,
+                y: position.y - offset.y,
+            };
+            if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
+                return Ok(Some((position, p)));
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -109,9 +123,12 @@ impl Panel for Ribbon {
         self.ribbon.clone()
     }
 
-    fn on_resize(&mut self) -> winrt::Result<()> {
-        self.ribbon.set_size(self.ribbon.parent()?.size()?)?;
+    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.ribbon.set_size(size)?;
         self.resize_cells()?;
+        for p in &mut self.cells {
+            p.panel.on_resize(&p.container.size()?, proxy)?;
+        }
         Ok(())
     }
 
@@ -122,22 +139,23 @@ impl Panel for Ribbon {
         Ok(())
     }
 
+    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.mouse_position = Some(position.clone());
+        if let Some((position, cell)) = self.get_cell_by_mouse_position(position)? {
+            cell.panel.on_mouse_move(&position, proxy)?;
+        }
+        Ok(())
+    }
+
     fn on_mouse_input(
         &mut self,
-        position: Vector2,
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        for p in &mut self.cells {
-            let offset = p.container.offset()?;
-            let size = p.container.size()?;
-            let position = Vector2 {
-                x: position.x - offset.x,
-                y: position.y - offset.y,
-            };
-            if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
-                return p.panel.on_mouse_input(position, button, state, proxy);
+        if let Some(position) = self.mouse_position.clone() {
+            if let Some((_, cell)) = self.get_cell_by_mouse_position(&position)? {
+                return cell.panel.on_mouse_input(button, state, proxy);
             }
         }
         Ok(false)
@@ -145,12 +163,12 @@ impl Panel for Ribbon {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             Some(self.as_any_mut())
         } else {
             for p in &mut self.cells {
-                if let Some(panel) = p.panel.get_panel(id) {
+                if let Some(panel) = p.panel.find_panel(id) {
                     return Some(panel);
                 }
             }
@@ -169,5 +187,24 @@ impl Panel for Ribbon {
             }
         }
         Ok(false)
+    }
+
+    fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.on_resize(&self.visual().parent()?.size()?, proxy)?;
+        for p in &mut self.cells {
+            p.panel.on_init(proxy)?;
+        }
+        Ok(())
+    }
+
+    fn on_panel_event(
+        &mut self,
+        panel_event: &mut crate::main_window::PanelEvent,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        for p in &mut self.cells {
+            p.panel.on_panel_event(panel_event, proxy)?;
+        }
+        Ok(())
     }
 }

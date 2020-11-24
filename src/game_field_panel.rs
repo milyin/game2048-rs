@@ -17,8 +17,8 @@ use bindings::{
 };
 use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
-use panelgui::main_window::{Handle, Panel, PanelEventProxy, PanelHandle, PanelManager};
-use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
+use panelgui::main_window::{Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle};
+use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
 const GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
@@ -42,6 +42,7 @@ pub struct GameFieldPanel {
     tile_text_layouts: HashMap<u32, CanvasTextLayout>,
     field: Field,
     score: u32,
+    mouse_pos: Option<Vector2>,
     mouse_pressed_pos: Option<Vector2>,
 }
 
@@ -65,8 +66,8 @@ impl Panel for GameFieldPanel {
     fn visual(&self) -> ContainerVisual {
         self.root.clone()
     }
-    fn on_resize(&mut self) -> winrt::Result<()> {
-        self.visual().set_size(self.visual().parent()?.size()?)?;
+    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.visual().set_size(size.clone())?;
         self.scale_game_board()
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -95,15 +96,28 @@ impl Panel for GameFieldPanel {
         Ok(false)
     }
 
+    fn on_mouse_move(&mut self, position: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.mouse_pos = Some(position.clone());
+        Ok(())
+    }
+
     fn on_mouse_input(
         &mut self,
-        position: Vector2,
-        _button: winit::event::MouseButton,
+        button: MouseButton,
         state: ElementState,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
+        let position = if let Some(ref posiition) = self.mouse_pos {
+            posiition
+        } else {
+            return Ok(false);
+        };
+        if button != MouseButton::Left {
+            return Ok(false);
+        }
+
         if state == ElementState::Pressed {
-            self.mouse_pressed_pos = Some(position);
+            self.mouse_pressed_pos = Some(position.clone());
         } else if state == ElementState::Released {
             if let Some(prev_position) = self.mouse_pressed_pos.take() {
                 let mut dx = position.x - prev_position.x;
@@ -136,11 +150,35 @@ impl Panel for GameFieldPanel {
         }
         Ok(true)
     }
+
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn std::any::Any> {
+        if self.id == id {
+            Some(self.as_any_mut())
+        } else {
+            None
+        }
+    }
+
+    fn on_init(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        Ok(())
+    }
+
+    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        Ok(())
+    }
+
+    fn on_panel_event(
+        &mut self,
+        _panel_event: &mut panelgui::main_window::PanelEvent,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        todo!()
+    }
 }
 
 impl GameFieldPanel {
-    pub fn new(game_window: &mut PanelManager) -> winrt::Result<Self> {
-        let compositor = game_window.compositor().clone();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let compositor = globals.compositor().clone();
         let root = compositor.create_sprite_visual()?;
         root.set_offset(Vector3 {
             x: 0.0,
@@ -167,10 +205,10 @@ impl GameFieldPanel {
         let (field, score) = Self::reset_field_and_score();
 
         let mut game_field = Self {
-            id: game_window.get_next_id(),
+            id: globals.get_next_id(),
             compositor,
-            canvas_device: game_window.canvas_device().clone(),
-            composition_graphics_device: game_window.composition_graphics_device().clone(),
+            canvas_device: globals.canvas_device().clone(),
+            composition_graphics_device: globals.composition_graphics_device().clone(),
             root: root.into(),
             game_board_visual,
             game_board_tiles: HashMap::new(),
@@ -179,6 +217,7 @@ impl GameFieldPanel {
             tile_text_layouts: HashMap::new(),
             field,
             score,
+            mouse_pos: None,
             mouse_pressed_pos: None,
         };
         game_field.animate_field()?; // TODO: separate 'new' and 'OnInit'
