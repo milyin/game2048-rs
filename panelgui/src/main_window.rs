@@ -30,24 +30,23 @@ pub trait Panel {
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any>;
     fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()>;
     fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()>;
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()>;
-    fn on_mouse_move(&mut self, _position: &Vector2, _proxy: &PanelEventProxy)
-        -> winrt::Result<()>;
+    fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()>;
+    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()>;
     fn on_mouse_input(
         &mut self,
-        _button: MouseButton,
-        _state: ElementState,
-        _proxy: &PanelEventProxy,
+        button: MouseButton,
+        state: ElementState,
+        proxy: &PanelEventProxy,
     ) -> winrt::Result<bool>;
     fn on_keyboard_input(
         &mut self,
-        _input: KeyboardInput,
-        _proxy: &PanelEventProxy,
+        input: KeyboardInput,
+        proxy: &PanelEventProxy,
     ) -> winrt::Result<bool>;
     fn on_panel_event(
         &mut self,
-        _panel_event: &mut PanelEvent,
-        _proxy: &PanelEventProxy,
+        panel_event: &mut PanelEvent,
+        proxy: &PanelEventProxy,
     ) -> winrt::Result<()>;
 }
 
@@ -134,9 +133,9 @@ pub struct EmptyPanel {
 }
 
 impl EmptyPanel {
-    pub fn new(panel_globals: &PanelGlobals) -> winrt::Result<Self> {
-        let visual = panel_globals.compositor().create_container_visual()?;
-        let id = panel_globals.get_next_id();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let visual = globals.compositor().create_container_visual()?;
+        let id = globals.get_next_id();
         Ok(Self { id, visual })
     }
 }

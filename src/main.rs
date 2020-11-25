@@ -9,8 +9,8 @@ use panelgui::{
     interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
     main_window::PanelHandle,
     main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
-    ribbon_panel::Ribbon,
     ribbon_panel::RibbonOrientation,
+    ribbon_panel::RibbonPanel,
     text_panel::{TextPanel, TextPanelHandle},
 };
 
@@ -19,7 +19,7 @@ mod game_field_panel;
 struct MainPanel {
     id: usize,
     visual: ContainerVisual,
-    root_panel: BackgroundPanel,
+    root_panel: RibbonPanel,
     control_manager: ControlManager,
     game_field_handle: GameFieldHandle,
     undo_button_handle: ButtonPanelHandle,
@@ -33,15 +33,16 @@ impl MainPanel {
         let id = globals.get_next_id();
         let visual = globals.compositor().create_container_visual()?;
 
-        let mut root_panel = BackgroundPanel::new(&globals)?;
+        let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
+        let background_panel = BackgroundPanel::new(&globals)?;
         let game_field_panel = GameFieldPanel::new(&globals)?;
         let score_panel = TextPanel::new(&globals)?;
         let mut undo_button_panel = ButtonPanel::new(&globals)?;
         let mut undo_button_text_panel = TextPanel::new(&globals)?;
         let mut reset_button_panel = ButtonPanel::new(&globals)?;
         let mut reset_button_text_panel = TextPanel::new(&globals)?;
-        let mut vribbon_panel = Ribbon::new(&globals, RibbonOrientation::Vertical)?;
-        let mut hribbon_panel = Ribbon::new(&globals, RibbonOrientation::Horizontal)?;
+        let mut vribbon_panel = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
+        let mut hribbon_panel = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
 
         // Take handles
         let game_field_handle = game_field_panel.handle();
@@ -54,12 +55,13 @@ impl MainPanel {
 
         undo_button_panel.add_panel(undo_button_text_panel)?;
         reset_button_panel.add_panel(reset_button_text_panel)?;
-        hribbon_panel.add_panel(undo_button_panel, 1.)?;
-        hribbon_panel.add_panel(score_panel, 1.)?;
-        hribbon_panel.add_panel(reset_button_panel, 1.)?;
-        vribbon_panel.add_panel(hribbon_panel, 1.)?;
-        vribbon_panel.add_panel(game_field_panel, 4.)?;
-        root_panel.add_panel(vribbon_panel)?;
+        hribbon_panel.push_panel(undo_button_panel, 1.)?;
+        hribbon_panel.push_panel(score_panel, 1.)?;
+        hribbon_panel.push_panel(reset_button_panel, 1.)?;
+        vribbon_panel.push_panel(hribbon_panel, 1.)?;
+        vribbon_panel.push_panel(game_field_panel, 4.)?;
+        root_panel.push_panel(background_panel, 1.0)?;
+        root_panel.push_panel(vribbon_panel, 1.0)?;
         visual
             .children()?
             .insert_at_top(root_panel.visual().clone())?;

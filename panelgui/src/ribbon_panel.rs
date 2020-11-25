@@ -2,7 +2,7 @@ use std::any::Any;
 
 use bindings::windows::{
     foundation::numerics::{Vector2, Vector3},
-    ui::composition::{Compositor, ContainerVisual},
+    ui::composition::ContainerVisual,
 };
 
 use crate::main_window::{Panel, PanelEventProxy, PanelGlobals};
@@ -11,6 +11,7 @@ use crate::main_window::{Panel, PanelEventProxy, PanelGlobals};
 pub enum RibbonOrientation {
     Horizontal,
     Vertical,
+    Stack,
 }
 
 struct RibbonCell {
@@ -19,79 +20,93 @@ struct RibbonCell {
     ratio: f32,
 }
 
-pub struct Ribbon {
+pub struct RibbonPanel {
     id: usize,
-    compositor: Compositor,
+    globals: PanelGlobals,
     orientation: RibbonOrientation,
     cells: Vec<RibbonCell>,
     ribbon: ContainerVisual,
     mouse_position: Option<Vector2>,
 }
 
-impl Ribbon {
+impl RibbonPanel {
     pub fn new(globals: &PanelGlobals, orientation: RibbonOrientation) -> winrt::Result<Self> {
-        let compositor = globals.compositor().clone();
-        let ribbon = compositor.create_container_visual()?;
+        let globals = globals.clone();
+        let ribbon = globals.compositor().create_container_visual()?;
         Ok(Self {
             id: globals.get_next_id(),
-            compositor,
+            globals,
             orientation,
             cells: Vec::new(),
             ribbon,
             mouse_position: None,
         })
     }
-    pub fn add_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
-        let container = self.compositor.create_container_visual()?;
+    pub fn push_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
+        let container = self.globals.compositor().create_container_visual()?;
         container
             .children()?
-            .insert_at_top(panel.visual().clone())?;
-        self.ribbon
-            .children()?
-            .insert_at_bottom(container.clone())?;
+            .insert_at_bottom(panel.visual().clone())?;
+        self.ribbon.children()?.insert_at_top(container.clone())?;
         let cell = RibbonCell {
             panel: Box::new(panel),
             container,
-            ratio,
+            ratio: ratio,
         };
         self.cells.push(cell);
         self.resize_cells()?;
         Ok(())
     }
+    pub fn pop_panel(&mut self) -> winrt::Result<()> {
+        if let Some(cell) = self.cells.pop() {
+            self.ribbon.children()?.remove(cell.container)?;
+            self.resize_cells()?;
+        }
+        Ok(())
+    }
 
     fn resize_cells(&mut self) -> winrt::Result<()> {
         let size = self.ribbon.size()?;
-        let hor = self.orientation == RibbonOrientation::Horizontal;
         let total = self.cells.iter().map(|c| c.ratio).sum::<f32>();
         let mut pos: f32 = 0.;
         for cell in &self.cells {
-            let share = if hor { size.x } else { size.y } * cell.ratio / total;
-            let size = if hor {
-                Vector2 {
-                    x: share,
-                    y: size.y,
-                }
-            } else {
-                Vector2 {
-                    x: size.x,
-                    y: share,
-                }
-            };
-            cell.container.set_size(&size)?;
-            cell.container.set_offset(if hor {
-                Vector3 {
-                    x: pos,
+            if self.orientation == RibbonOrientation::Stack {
+                cell.container.set_size(&size)?;
+                cell.container.set_offset(Vector3 {
+                    x: 0.,
                     y: 0.,
                     z: 0.,
-                }
+                })?;
             } else {
-                Vector3 {
-                    x: 0.,
-                    y: pos,
-                    z: 0.,
-                }
-            })?;
-            pos += share;
+                let hor = self.orientation == RibbonOrientation::Horizontal;
+                let share = if hor { size.x } else { size.y } * cell.ratio / total;
+                let size = if hor {
+                    Vector2 {
+                        x: share,
+                        y: size.y,
+                    }
+                } else {
+                    Vector2 {
+                        x: size.x,
+                        y: share,
+                    }
+                };
+                cell.container.set_size(&size)?;
+                cell.container.set_offset(if hor {
+                    Vector3 {
+                        x: pos,
+                        y: 0.,
+                        z: 0.,
+                    }
+                } else {
+                    Vector3 {
+                        x: 0.,
+                        y: pos,
+                        z: 0.,
+                    }
+                })?;
+                pos += share;
+            }
         }
         Ok(())
     }
@@ -100,7 +115,8 @@ impl Ribbon {
         &'a mut self,
         position: &Vector2,
     ) -> winrt::Result<Option<(Vector2, &'a mut RibbonCell)>> {
-        for p in &mut self.cells {
+        // Scan in reverse order to give priority to topmost cell when in Stack mode
+        for p in &mut self.cells.iter_mut().rev() {
             let offset = p.container.offset()?;
             let size = p.container.size()?;
             let position = Vector2 {
@@ -115,7 +131,7 @@ impl Ribbon {
     }
 }
 
-impl Panel for Ribbon {
+impl Panel for RibbonPanel {
     fn id(&self) -> usize {
         self.id
     }
