@@ -172,7 +172,7 @@ impl Panel for GameFieldPanel {
         _panel_event: &mut panelgui::main_window::PanelEvent,
         _proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
-        todo!()
+        Ok(())
     }
 }
 

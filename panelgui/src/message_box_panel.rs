@@ -6,7 +6,8 @@ use bindings::windows::ui::composition::ContainerVisual;
 
 use crate::{
     background_panel::BackgroundPanel,
-    button_panel::ButtonPanel,
+    button_panel::{ButtonPanel, ButtonPanelHandle},
+    control::ControlManager,
     main_window::{Handle, Panel, PanelGlobals, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
@@ -35,6 +36,11 @@ pub struct MessageBoxPanel {
     id: usize,
     visual: ContainerVisual,
     root_panel: RibbonPanel,
+    control_manager: ControlManager,
+    handle_yes: ButtonPanelHandle,
+    handle_no: ButtonPanelHandle,
+    handle_ok: ButtonPanelHandle,
+    handle_cancel: ButtonPanelHandle,
 }
 
 impl MessageBoxPanel {
@@ -59,6 +65,10 @@ impl MessageBoxPanel {
         let mut text_no = TextPanel::new(&globals)?;
         let mut text_ok = TextPanel::new(&globals)?;
         let mut text_cancel = TextPanel::new(&globals)?;
+        let handle_yes = button_yes.handle();
+        let handle_no = button_no.handle();
+        let handle_ok = button_ok.handle();
+        let handle_cancel = button_cancel.handle();
         text_yes.set_text("Yes")?;
         text_no.set_text("No")?;
         text_ok.set_text("OK")?;
@@ -68,26 +78,37 @@ impl MessageBoxPanel {
         button_ok.add_panel(text_ok)?;
         button_cancel.add_panel(text_cancel)?;
         let mut ribbon = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
-        ribbon.push_panel(message_panel, 1.0)?;
+        ribbon.push_panel(message_panel, 3.0)?;
         let mut ribbon_buttons = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
+        let mut control_manager = ControlManager::new();
         if button_flags.contains(MessageBoxButton::Yes) {
             ribbon_buttons.push_panel(button_yes, 1.0)?;
+            control_manager.add_control(handle_yes.clone());
         }
         if button_flags.contains(MessageBoxButton::No) {
             ribbon_buttons.push_panel(button_no, 1.0)?;
+            control_manager.add_control(handle_no.clone());
         }
         if button_flags.contains(MessageBoxButton::Ok) {
             ribbon_buttons.push_panel(button_ok, 1.0)?;
+            control_manager.add_control(handle_ok.clone());
         }
         if button_flags.contains(MessageBoxButton::Cancel) {
             ribbon_buttons.push_panel(button_cancel, 1.0)?;
+            control_manager.add_control(handle_cancel.clone());
         }
         ribbon.push_panel(ribbon_buttons, 1.0)?;
         root_panel.push_panel(ribbon, 1.0)?;
+
         Ok(Self {
             id: globals.get_next_id(),
             visual,
             root_panel,
+            control_manager,
+            handle_yes,
+            handle_no,
+            handle_ok,
+            handle_cancel,
         })
     }
     pub fn handle(&self) -> MessageBoxPanelHandle {
@@ -155,7 +176,10 @@ impl Panel for MessageBoxPanel {
         input: winit::event::KeyboardInput,
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<bool> {
-        self.root_panel.on_keyboard_input(input, proxy)
+        Ok(self.root_panel.on_keyboard_input(input, proxy)?
+            || self
+                .control_manager
+                .process_keyboard_input(input, &mut self.root_panel, proxy)?)
     }
 
     fn on_panel_event(
@@ -163,6 +187,9 @@ impl Panel for MessageBoxPanel {
         panel_event: &mut crate::main_window::PanelEvent,
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<()> {
-        self.root_panel.on_panel_event(panel_event, proxy)
+        self.root_panel.on_panel_event(panel_event, proxy)?;
+        self.control_manager
+            .process_panel_event(panel_event, &mut self.root_panel, proxy)?;
+        Ok(())
     }
 }

@@ -80,7 +80,7 @@ impl MainPanel {
                 | MessageBoxButton::Yes
                 | MessageBoxButton::No,
         )?;
-        root_panel.push_panel(message_box, 1.0)?;
+        //root_panel.push_panel(message_box, 1.0)?;
 
         Ok(Self {
             id,
@@ -169,10 +169,10 @@ impl Panel for MainPanel {
         input: winit::event::KeyboardInput,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        Ok(self
-            .control_manager
-            .process_keyboard_input(input, &mut self.root_panel, proxy)?
-            || self.root_panel.on_keyboard_input(input, proxy)?)
+        Ok(self.root_panel.on_keyboard_input(input, proxy)?
+            || self
+                .control_manager
+                .process_keyboard_input(input, &mut self.root_panel, proxy)?)
     }
 
     fn on_panel_event(
@@ -180,6 +180,7 @@ impl Panel for MainPanel {
         panel_event: &mut PanelEvent,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
+        self.root_panel.on_panel_event(panel_event, proxy)?;
         if self.undo_button_handle.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
             self.game_field_handle
                 .at(&mut self.root_panel)?

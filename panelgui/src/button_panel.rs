@@ -12,7 +12,9 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle},
+    main_window::{
+        winrt_error, Handle, Panel, PanelEvent, PanelEventProxy, PanelGlobals, PanelHandle,
+    },
 };
 
 #[derive(PartialEq)]
@@ -257,7 +259,7 @@ impl Panel for ButtonPanel {
 
     fn on_panel_event(
         &mut self,
-        panel_event: &mut crate::main_window::PanelEvent,
+        panel_event: &mut PanelEvent,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
         self.panel()?.on_panel_event(panel_event, proxy)
