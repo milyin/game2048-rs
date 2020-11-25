@@ -3,7 +3,7 @@ pub mod button_panel;
 pub mod control;
 pub mod interop;
 pub mod main_window;
-//pub mod message_box_panel;
+pub mod message_box_panel;
 pub mod numerics;
 pub mod ribbon_panel;
 pub mod text_panel;

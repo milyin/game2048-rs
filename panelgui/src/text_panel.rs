@@ -136,7 +136,7 @@ impl TextPanel {
             ds.draw_text_layout_at_coords_with_color(text_layout, 0., 0., color)
         } else {
             Ok(())
-        }
+            }
     }
 }
 

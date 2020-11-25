@@ -9,6 +9,8 @@ use panelgui::{
     interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
     main_window::PanelHandle,
     main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
+    message_box_panel::MessageBoxButton,
+    message_box_panel::MessageBoxPanel,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     text_panel::{TextPanel, TextPanelHandle},
@@ -69,6 +71,16 @@ impl MainPanel {
         let mut control_manager = ControlManager::new();
         control_manager.add_control(undo_button_handle.clone());
         control_manager.add_control(reset_button_handle.clone());
+
+        let message_box = MessageBoxPanel::new(
+            &globals,
+            "This is a test",
+            MessageBoxButton::Ok
+                | MessageBoxButton::Cancel
+                | MessageBoxButton::Yes
+                | MessageBoxButton::No,
+        )?;
+        root_panel.push_panel(message_box, 1.0)?;
 
         Ok(Self {
             id,
