@@ -18,6 +18,7 @@ struct RibbonCell {
     panel: Box<dyn Panel>,
     container: ContainerVisual,
     ratio: f32,
+    content_ratio: Vector2,
 }
 
 pub struct RibbonPanel {
@@ -43,6 +44,14 @@ impl RibbonPanel {
         })
     }
     pub fn push_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
+        self.push_panel_sized(panel, ratio, Vector2 { x: 1., y: 1. })
+    }
+    pub fn push_panel_sized<P: Panel + 'static>(
+        &mut self,
+        panel: P,
+        ratio: f32,
+        content_ratio: Vector2,
+    ) -> winrt::Result<()> {
         let container = self.globals.compositor().create_container_visual()?;
         container
             .children()?
@@ -51,7 +60,8 @@ impl RibbonPanel {
         let cell = RibbonCell {
             panel: Box::new(panel),
             container,
-            ratio: ratio,
+            ratio,
+            content_ratio,
         };
         self.cells.push(cell);
         self.resize_cells()?;
@@ -73,12 +83,14 @@ impl RibbonPanel {
         let mut pos: f32 = 0.;
         for cell in &self.cells {
             if self.orientation == RibbonOrientation::Stack {
-                cell.container.set_size(&size)?;
-                cell.container.set_offset(Vector3 {
-                    x: 0.,
-                    y: 0.,
+                let content_size = size.clone() * cell.content_ratio.clone();
+                let content_offset = Vector3 {
+                    x: (size.x - content_size.x) / 2.,
+                    y: (size.y - content_size.y) / 2.,
                     z: 0.,
-                })?;
+                };
+                cell.container.set_size(&content_size)?;
+                cell.container.set_offset(&content_offset)?;
             } else {
                 let hor = self.orientation == RibbonOrientation::Horizontal;
                 let share = if hor { size.x } else { size.y } * cell.ratio / total;

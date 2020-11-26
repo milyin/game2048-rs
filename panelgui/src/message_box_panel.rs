@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use enumflags2::BitFlags;
 
-use bindings::windows::ui::composition::ContainerVisual;
+use bindings::windows::ui::{composition::ContainerVisual, Colors};
 
 use crate::{
     background_panel::BackgroundPanel,
@@ -53,7 +53,9 @@ impl MessageBoxPanel {
         let visual = globals.compositor().create_container_visual()?;
         let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
         visual.children()?.insert_at_top(root_panel.visual())?;
-        let background_panel = BackgroundPanel::new(&globals)?;
+        let mut background_panel = BackgroundPanel::new(&globals)?;
+        background_panel.set_round_corners(true)?;
+        background_panel.set_color(Colors::wheat()?)?;
         root_panel.push_panel(background_panel, 1.0)?;
         let mut message_panel = TextPanel::new(&globals)?;
         message_panel.set_text(message)?;
@@ -78,7 +80,7 @@ impl MessageBoxPanel {
         button_ok.add_panel(text_ok)?;
         button_cancel.add_panel(text_cancel)?;
         let mut ribbon = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
-        ribbon.push_panel(message_panel, 3.0)?;
+        ribbon.push_panel(message_panel, 1.0)?;
         let mut ribbon_buttons = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
         let mut control_manager = ControlManager::new();
         if button_flags.contains(MessageBoxButton::Yes) {

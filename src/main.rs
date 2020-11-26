@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bindings::windows::ui::composition::ContainerVisual;
+use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     background_panel::BackgroundPanel,
@@ -109,11 +109,12 @@ impl MainPanel {
     fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         let message_box = MessageBoxPanel::new(
             &self.globals,
-            "Do you want to start new game?",
+            "Start new game?",
             MessageBoxButton::Yes | MessageBoxButton::No,
         )?;
         self.message_box_reset_handle = Some(message_box.handle());
-        self.root_panel.push_panel(message_box, 1.0)?;
+        self.root_panel
+            .push_panel_sized(message_box, 1.0, Vector2 { x: 0.9, y: 0.4 })?;
         self.root_panel.adjust_cells(proxy)?;
         Ok(())
     }

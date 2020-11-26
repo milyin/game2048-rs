@@ -4,9 +4,10 @@ use bindings::windows::{
     foundation::numerics::Vector2,
     ui::{
         composition::{CompositionShape, ContainerVisual, ShapeVisual},
-        Colors,
+        Color, Colors,
     },
 };
+use float_ord::FloatOrd;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
 use crate::main_window::{Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle};
@@ -16,6 +17,8 @@ pub struct BackgroundPanel {
     globals: PanelGlobals,
     visual: ContainerVisual,
     background: ShapeVisual,
+    color: Color,
+    round_corners: bool,
 }
 
 pub struct BackgroundPanelHandle {
@@ -41,10 +44,20 @@ impl BackgroundPanel {
             globals: globals.clone(),
             visual,
             background,
+            color: Colors::white()?,
+            round_corners: false,
         })
     }
     pub fn handle(&self) -> BackgroundPanelHandle {
         BackgroundPanelHandle { id: self.id }
+    }
+    pub fn set_color(&mut self, color: Color) -> winrt::Result<()> {
+        self.color = color;
+        self.redraw_background()
+    }
+    pub fn set_round_corners(&mut self, round_corners: bool) -> winrt::Result<()> {
+        self.round_corners = round_corners;
+        self.redraw_background()
     }
     fn redraw_background(&mut self) -> winrt::Result<()> {
         self.background.set_size(self.visual.size()?)?;
@@ -56,12 +69,25 @@ impl BackgroundPanel {
     }
     fn create_background_shape(&self) -> winrt::Result<CompositionShape> {
         let container_shape = self.globals.compositor().create_container_shape()?;
-        let rect_geometry = self.globals.compositor().create_rectangle_geometry()?;
+        let rect_geometry = self
+            .globals
+            .compositor()
+            .create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background.size()?)?;
+        if self.round_corners {
+            let size = rect_geometry.size()?;
+            let radius = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
+            rect_geometry.set_corner_radius(Vector2 {
+                x: radius,
+                y: radius,
+            })?;
+        } else {
+            rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
+        }
         let brush = self
             .globals
             .compositor()
-            .create_color_brush_with_color(Colors::white()?)?;
+            .create_color_brush_with_color(self.color.clone())?;
         let rect = self
             .globals
             .compositor()
