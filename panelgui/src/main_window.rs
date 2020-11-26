@@ -1,4 +1,7 @@
-use std::any::Any;
+use std::{
+    any::Any,
+    sync::{Arc, Mutex},
+};
 
 use crate::window_target::CompositionDesktopWindowTargetSource;
 use bindings::microsoft::graphics::canvas::ui::composition::CanvasComposition;
@@ -9,7 +12,7 @@ use bindings::windows::ui::composition::CompositionGraphicsDevice;
 use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, MouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -24,41 +27,27 @@ pub trait Panel {
     fn id(&self) -> usize;
     fn visual(&self) -> ContainerVisual;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
-        self.get_panel_default(id)
-    }
-    fn on_resize(&mut self) -> winrt::Result<()> {
-        self.on_resize_default()
-    }
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
-        Ok(())
-    }
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any>;
+    fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()>;
+    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()>;
+    fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()>;
+    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()>;
     fn on_mouse_input(
         &mut self,
-        _position: Vector2,
-        _button: MouseButton,
-        _state: ElementState,
-        _proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
-        Ok(false)
-    }
+        button: MouseButton,
+        state: ElementState,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool>;
     fn on_keyboard_input(
         &mut self,
-        _input: KeyboardInput,
-        _proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
-        Ok(false)
-    }
-    fn on_resize_default(&mut self) -> winrt::Result<()> {
-        self.visual().set_size(self.visual().parent()?.size()?)
-    }
-    fn get_panel_default(&mut self, id: usize) -> Option<&mut dyn Any> {
-        if self.id() == id {
-            Some(self.as_any_mut())
-        } else {
-            None
-        }
-    }
+        input: KeyboardInput,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool>;
+    fn on_panel_event(
+        &mut self,
+        panel_event: &mut PanelEvent,
+        proxy: &PanelEventProxy,
+    ) -> winrt::Result<()>;
 }
 
 #[derive(Clone)]
@@ -66,6 +55,7 @@ pub struct PanelGlobals {
     compositor: Compositor,
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
+    next_id: Arc<Mutex<usize>>,
 }
 
 impl PanelGlobals {
@@ -78,6 +68,12 @@ impl PanelGlobals {
     pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
         &self.composition_graphics_device
     }
+    pub fn get_next_id(&self) -> usize {
+        let mut guard = self.next_id.lock().unwrap();
+        let next_id = *guard;
+        *guard += 1;
+        next_id
+    }
 }
 
 pub trait Handle {
@@ -85,18 +81,24 @@ pub trait Handle {
 }
 
 pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
-    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> Option<&'a mut PanelType> {
-        if let Some(p) = root_panel.get_panel(self.id()) {
+    fn at<'a>(&self, root_panel: &'a mut dyn Panel) -> winrt::Result<&'a mut PanelType> {
+        if let Some(p) = root_panel.find_panel(self.id()) {
             if let Some(p) = p.downcast_mut::<PanelType>() {
-                return Some(p);
+                return Ok(p);
             }
         }
-        None
+        Err(winrt_error("Can't find panel"))
     }
-    fn extract_event(&self, event: &mut PanelEvent) -> Option<PanelEventType> {
-        if event.panel_id == self.id() {
-            if let Some(data) = event.data.take() {
-                data.downcast::<PanelEventType>().ok().map(|e| *e)
+    fn extract_event(&self, panel_event: &mut PanelEvent) -> Option<PanelEventType> {
+        if panel_event.panel_id == self.id() {
+            if let Some(data) = panel_event.data.take() {
+                match data.downcast::<PanelEventType>() {
+                    Ok(e) => Some(*e),
+                    Err(data) => {
+                        panel_event.data = Some(data);
+                        None
+                    }
+                }
             } else {
                 None
             }
@@ -131,12 +133,9 @@ pub struct EmptyPanel {
 }
 
 impl EmptyPanel {
-    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
-        let visual = panel_manager
-            .get_globals()
-            .compositor
-            .create_container_visual()?;
-        let id = panel_manager.get_next_id();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let visual = globals.compositor().create_container_visual()?;
+        let id = globals.get_next_id();
         Ok(Self { id, visual })
     }
 }
@@ -151,131 +150,63 @@ impl Panel for EmptyPanel {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
-}
 
-pub struct PanelManager {
-    panel_globals: PanelGlobals,
-    root_panel: Option<Box<dyn Panel>>,
-    owner: ContainerVisual,
-    cursor_position: PhysicalPosition<f64>,
-    next_id: usize,
-}
-
-impl PanelManager {
-    fn new(owner: &ContainerVisual, panel_globals: PanelGlobals) -> winrt::Result<Self> {
-        let cursor_position = (0., 0.).into();
-        let owner = owner.clone();
-        Ok(PanelManager {
-            panel_globals,
-            root_panel: None,
-            owner,
-            cursor_position,
-            next_id: 0,
-        })
-    }
-
-    pub fn set_root_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
-        self.root_panel = Some(Box::new(panel));
-        self.owner
-            .children()?
-            .insert_at_top(self.root_panel()?.visual().clone())?; // TODO: remove on drop
-        self.root_panel()?.on_resize()?;
-        Ok(())
-    }
-
-    pub fn root_panel(&mut self) -> winrt::Result<&mut (dyn Panel + 'static)> {
-        if let Some(root_panel) = self.root_panel.as_deref_mut() {
-            Ok(&mut *root_panel)
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+        if id == self.id() {
+            Some(self.as_any_mut())
         } else {
-            Err(winrt_error("No root panel set in panal manager"))
+            None
         }
     }
 
-    pub fn panel<'a, T: Panel + 'static, E: Any + 'static, H: PanelHandle<T, E>>(
-        &'a mut self,
-        handle: H,
-    ) -> winrt::Result<&'a mut T> {
-        handle
-            .at(self.root_panel()?)
-            .ok_or(winrt_error("Can't find panel"))
+    fn on_init(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        Ok(())
     }
 
-    pub fn get_next_id(&mut self) -> usize {
-        let id = self.next_id;
-        self.next_id += 1;
-        id
+    fn on_resize(&mut self, _size: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        Ok(())
     }
 
-    pub fn get_globals(&self) -> PanelGlobals {
-        self.panel_globals.clone()
+    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        Ok(())
     }
 
-    pub fn compositor(&self) -> &Compositor {
-        &self.panel_globals.compositor
-    }
-    pub fn canvas_device(&self) -> &CanvasDevice {
-        &self.panel_globals.canvas_device
-    }
-    pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
-        &self.panel_globals.composition_graphics_device
-    }
-
-    pub fn process_event(
+    fn on_mouse_move(
         &mut self,
-        evt: &Event<PanelEvent>,
-        proxy: &PanelEventProxy,
+        _position: &Vector2,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        Ok(())
+    }
+
+    fn on_mouse_input(
+        &mut self,
+        _button: MouseButton,
+        _state: ElementState,
+        _proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        let consumed = match evt {
-            Event::WindowEvent {
-                event: WindowEvent::Resized(_),
-                ..
-            } => {
-                self.root_panel()?.on_resize()?;
-                false
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => {
-                self.cursor_position = *position;
-                // TODO: on mouse move handle here
-                false
-            }
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        device_id: _,
-                        input,
-                        is_synthetic: _,
-                    },
-                ..
-            } => self.root_panel()?.on_keyboard_input(*input, proxy)?,
-            Event::WindowEvent {
-                event: WindowEvent::MouseInput { state, button, .. },
-                ..
-            } => {
-                // TODO: check for scaled modes
-                let position = Vector2 {
-                    x: self.cursor_position.x as f32, // - window_position.x as f32,
-                    y: self.cursor_position.y as f32, // - window_position.y as f32,
-                };
-                self.root_panel()?
-                    .on_mouse_input(position, *button, *state, &proxy)?
-            }
-            Event::MainEventsCleared => {
-                self.root_panel()?.on_idle(&proxy)?;
-                false
-            }
-            _ => false,
-        };
-        Ok(consumed)
+        Ok(false)
+    }
+
+    fn on_keyboard_input(
+        &mut self,
+        _input: KeyboardInput,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<bool> {
+        Ok(false)
+    }
+
+    fn on_panel_event(
+        &mut self,
+        _panel_event: &mut PanelEvent,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        Ok(())
     }
 }
 
 pub struct MainWindow {
-    compositor: Compositor,
-    canvas_device: CanvasDevice,
-    composition_graphics_device: CompositionGraphicsDevice,
+    globals: PanelGlobals,
     root: ContainerVisual,
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
@@ -307,10 +238,15 @@ impl MainWindow {
         let composition_graphics_device =
             CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
 
-        Ok(Self {
+        let globals = PanelGlobals {
             compositor,
             canvas_device,
             composition_graphics_device,
+            next_id: Arc::new(Mutex::new(0)),
+        };
+
+        Ok(Self {
+            globals,
             root,
             _target: target,
             event_loop: Some(event_loop),
@@ -334,49 +270,62 @@ impl MainWindow {
         }
     }
 
-    pub fn create_panel_manager(&self) -> winrt::Result<PanelManager> {
-        PanelManager::new(
-            &self.root,
-            PanelGlobals {
-                compositor: self.compositor.clone(),
-                canvas_device: self.canvas_device.clone(),
-                composition_graphics_device: self.composition_graphics_device.clone(),
-            },
-        )
+    pub fn get_globals(&self) -> &PanelGlobals {
+        &self.globals
     }
 
-    pub fn run<F>(mut self, mut event_handler: F)
-    where
-        F: 'static + FnMut(Event<'_, PanelEvent>, &PanelEventProxy) -> winrt::Result<()>,
-    {
+    pub fn run(mut self, mut panel: impl Panel + 'static) -> winrt::Result<()> {
         let event_loop = self.event_loop.take().unwrap();
         let proxy = PanelEventProxy {
             proxy: event_loop.create_proxy(),
         };
-        event_loop.run(move |evt, _, control_flow| {
+        self.visual().children()?.insert_at_top(panel.visual())?;
+        panel.on_init(&proxy)?;
+        event_loop.run(move |mut evt, _, control_flow| {
             // just to allow '?' usage
             || -> winrt::Result<()> {
                 *control_flow = ControlFlow::Wait;
-                match &evt {
-                    Event::WindowEvent {
-                        event: WindowEvent::CloseRequested,
-                        window_id,
-                    } if *window_id == self.window.id() => {
-                        *control_flow = ControlFlow::Exit;
+                match &mut evt {
+                    Event::WindowEvent { event, window_id } => match event {
+                        WindowEvent::Resized(size) => {
+                            let size = Vector2 {
+                                x: size.width as f32,
+                                y: size.height as f32,
+                            };
+                            self.root.set_size(&size)?;
+                            panel.on_resize(&size, &proxy)?;
+                        }
+                        WindowEvent::CloseRequested => {
+                            if *window_id == self.window.id() {
+                                *control_flow = ControlFlow::Exit;
+                                // TODO: notify panels
+                            }
+                        }
+                        WindowEvent::KeyboardInput { input, .. } => {
+                            let _ = panel.on_keyboard_input(*input, &proxy)?;
+                        }
+                        WindowEvent::CursorMoved { position, .. } => {
+                            let position = Vector2 {
+                                x: position.x as f32,
+                                y: position.y as f32,
+                            };
+                            panel.on_mouse_move(&position, &proxy)?;
+                        }
+                        WindowEvent::MouseInput { state, button, .. } => {
+                            let _ = panel.on_mouse_input(*button, *state, &proxy)?;
+                        }
+                        _ => {}
+                    },
+                    Event::MainEventsCleared => {
+                        panel.on_idle(&proxy)?;
                     }
-                    Event::WindowEvent {
-                        event: WindowEvent::Resized(size),
-                        ..
-                    } => {
-                        let window_size = Vector2 {
-                            x: size.width as f32,
-                            y: size.height as f32,
-                        };
-                        self.root.set_size(window_size)?;
+                    Event::UserEvent(ref mut panel_event) => {
+                        panel.on_panel_event(panel_event, &proxy)?;
                     }
                     _ => {}
                 }
-                event_handler(evt, &proxy)
+
+                Ok(())
             }()
             .unwrap()
         });

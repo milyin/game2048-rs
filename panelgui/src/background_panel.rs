@@ -4,18 +4,21 @@ use bindings::windows::{
     foundation::numerics::Vector2,
     ui::{
         composition::{CompositionShape, ContainerVisual, ShapeVisual},
-        Colors,
+        Color, Colors,
     },
 };
+use float_ord::FloatOrd;
+use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{Handle, Panel, PanelGlobals, PanelHandle, PanelManager};
+use crate::main_window::{Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle};
 
 pub struct BackgroundPanel {
     id: usize,
     globals: PanelGlobals,
     visual: ContainerVisual,
     background: ShapeVisual,
-    panel: Option<Box<dyn Panel>>,
+    color: Color,
+    round_corners: bool,
 }
 
 pub struct BackgroundPanelHandle {
@@ -31,32 +34,30 @@ impl Handle for BackgroundPanelHandle {
 impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
-    pub fn new(panel_manager: &mut PanelManager) -> winrt::Result<Self> {
-        let id = panel_manager.get_next_id();
-        let globals = panel_manager.get_globals();
+    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
+        let id = globals.get_next_id();
         let visual = globals.compositor().create_container_visual()?;
         let background = globals.compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
         Ok(Self {
             id,
-            globals,
+            globals: globals.clone(),
             visual,
             background,
-            panel: None,
+            color: Colors::white()?,
+            round_corners: false,
         })
     }
     pub fn handle(&self) -> BackgroundPanelHandle {
         BackgroundPanelHandle { id: self.id }
     }
-    pub fn add_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
-        self.visual
-            .children()?
-            .insert_at_top(panel.visual().clone())?;
-        self.panel = Some(Box::new(panel));
-        Ok(())
+    pub fn set_color(&mut self, color: Color) -> winrt::Result<()> {
+        self.color = color;
+        self.redraw_background()
     }
-    pub fn panel(&mut self) -> Option<&mut (dyn Panel + 'static)> {
-        self.panel.as_deref_mut()
+    pub fn set_round_corners(&mut self, round_corners: bool) -> winrt::Result<()> {
+        self.round_corners = round_corners;
+        self.redraw_background()
     }
     fn redraw_background(&mut self) -> winrt::Result<()> {
         self.background.set_size(self.visual.size()?)?;
@@ -68,12 +69,25 @@ impl BackgroundPanel {
     }
     fn create_background_shape(&self) -> winrt::Result<CompositionShape> {
         let container_shape = self.globals.compositor().create_container_shape()?;
-        let rect_geometry = self.globals.compositor().create_rectangle_geometry()?;
+        let rect_geometry = self
+            .globals
+            .compositor()
+            .create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background.size()?)?;
+        if self.round_corners {
+            let size = rect_geometry.size()?;
+            let radius = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
+            rect_geometry.set_corner_radius(Vector2 {
+                x: radius,
+                y: radius,
+            })?;
+        } else {
+            rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
+        }
         let brush = self
             .globals
             .compositor()
-            .create_color_brush_with_color(Colors::white()?)?;
+            .create_color_brush_with_color(self.color.clone())?;
         let rect = self
             .globals
             .compositor()
@@ -99,52 +113,57 @@ impl Panel for BackgroundPanel {
         self
     }
 
-    fn get_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
+    fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             return Some(self.as_any_mut());
-        } else if let Some(p) = self.panel() {
-            p.get_panel(id)
         } else {
             None
         }
     }
 
-    fn on_resize(&mut self) -> winrt::Result<()> {
-        self.visual.set_size(self.visual.parent()?.size()?)?;
-        self.redraw_background()?;
-        if let Some(p) = self.panel() {
-            p.on_resize()?;
-        }
-        Ok(())
+    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.visual.set_size(size.clone())?;
+        self.redraw_background()
     }
 
-    fn on_idle(&mut self, _proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
+    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
         Ok(())
     }
 
     fn on_mouse_input(
         &mut self,
-        position: bindings::windows::foundation::numerics::Vector2,
-        button: winit::event::MouseButton,
-        state: winit::event::ElementState,
-        proxy: &crate::main_window::PanelEventProxy,
+        _button: MouseButton,
+        _state: ElementState,
+        _proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        if let Some(p) = self.panel() {
-            p.on_mouse_input(position, button, state, proxy)
-        } else {
-            Ok(false)
-        }
+        Ok(false)
     }
 
     fn on_keyboard_input(
         &mut self,
-        input: winit::event::KeyboardInput,
-        proxy: &crate::main_window::PanelEventProxy,
+        _input: KeyboardInput,
+        _proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        if let Some(p) = self.panel() {
-            p.on_keyboard_input(input, proxy)
-        } else {
-            Ok(false)
-        }
+        Ok(false)
+    }
+
+    fn on_init(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+        Ok(())
+    }
+
+    fn on_mouse_move(
+        &mut self,
+        _position: &Vector2,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        Ok(())
+    }
+
+    fn on_panel_event(
+        &mut self,
+        _panel_event: &mut crate::main_window::PanelEvent,
+        _proxy: &PanelEventProxy,
+    ) -> winrt::Result<()> {
+        Ok(())
     }
 }
