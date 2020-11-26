@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{winrt_error, Panel, PanelEventProxy, PanelGlobals};
+use crate::main_window::{globals, winrt_error, Panel, PanelEventProxy};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -23,7 +23,6 @@ struct RibbonCell {
 
 pub struct RibbonPanel {
     id: usize,
-    globals: PanelGlobals,
     orientation: RibbonOrientation,
     cells: Vec<RibbonCell>,
     ribbon: ContainerVisual,
@@ -31,12 +30,10 @@ pub struct RibbonPanel {
 }
 
 impl RibbonPanel {
-    pub fn new(globals: &PanelGlobals, orientation: RibbonOrientation) -> winrt::Result<Self> {
-        let globals = globals.clone();
-        let ribbon = globals.compositor().create_container_visual()?;
+    pub fn new(orientation: RibbonOrientation) -> winrt::Result<Self> {
+        let ribbon = globals().compositor().create_container_visual()?;
         Ok(Self {
-            id: globals.get_next_id(),
-            globals,
+            id: globals().get_next_id(),
             orientation,
             cells: Vec::new(),
             ribbon,
@@ -52,7 +49,7 @@ impl RibbonPanel {
         ratio: f32,
         content_ratio: Vector2,
     ) -> winrt::Result<()> {
-        let container = self.globals.compositor().create_container_visual()?;
+        let container = globals().compositor().create_container_visual()?;
         container
             .children()?
             .insert_at_top(panel.visual().clone())?;

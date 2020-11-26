@@ -11,5 +11,3 @@ pub mod numerics;
 pub mod ribbon_panel;
 pub mod text_panel;
 pub mod window_target;
-
-pub use background_panel::BackgroundPanelBuilder;

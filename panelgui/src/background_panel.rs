@@ -10,13 +10,12 @@ use bindings::windows::{
 use float_ord::FloatOrd;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{winrt_error, Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle};
+use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(Builder)]
 #[builder(build_fn(private, name = "build_default"), setter(skip))]
 pub struct BackgroundPanel {
     id: usize,
-    globals: Option<PanelGlobals>,
     visual: ContainerVisual,
     background: ShapeVisual,
     #[builder(setter(into), default)]
@@ -26,10 +25,10 @@ pub struct BackgroundPanel {
 }
 
 impl BackgroundPanelBuilder {
-    pub fn build(&self, globals: &PanelGlobals) -> winrt::Result<BackgroundPanel> {
+    pub fn build(&self) -> winrt::Result<BackgroundPanel> {
         match self.build_default() {
             Ok(mut panel) => {
-                panel.finish_build(&globals)?;
+                panel.finish_build()?;
                 Ok(panel)
             }
             Err(e) => {
@@ -53,20 +52,14 @@ impl Handle for BackgroundPanelHandle {
 impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
-    fn finish_build(&mut self, globals: &PanelGlobals) -> winrt::Result<()> {
-        self.globals = Some(globals.clone());
-        self.id = globals.get_next_id();
-        self.visual = globals.compositor().create_container_visual()?;
-        self.background = globals.compositor().create_shape_visual()?;
+    fn finish_build(&mut self) -> winrt::Result<()> {
+        self.id = globals().get_next_id();
+        self.visual = globals().compositor().create_container_visual()?;
+        self.background = globals().compositor().create_shape_visual()?;
         self.visual
             .children()?
             .insert_at_bottom(self.background.clone())?;
         Ok(())
-    }
-    fn globals(&self) -> winrt::Result<&PanelGlobals> {
-        self.globals
-            .as_ref()
-            .ok_or(winrt_error("PanelGlobals not assigned"))
     }
     pub fn handle(&self) -> BackgroundPanelHandle {
         BackgroundPanelHandle { id: self.id }
@@ -88,11 +81,8 @@ impl BackgroundPanel {
         Ok(())
     }
     fn create_background_shape(&self) -> winrt::Result<CompositionShape> {
-        let container_shape = self.globals()?.compositor().create_container_shape()?;
-        let rect_geometry = self
-            .globals()?
-            .compositor()
-            .create_rounded_rectangle_geometry()?;
+        let container_shape = globals().compositor().create_container_shape()?;
+        let rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background.size()?)?;
         if self.round_corners {
             let size = rect_geometry.size()?;
@@ -104,12 +94,10 @@ impl BackgroundPanel {
         } else {
             rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
         }
-        let brush = self
-            .globals()?
+        let brush = globals()
             .compositor()
             .create_color_brush_with_color(self.color.clone())?;
-        let rect = self
-            .globals()?
+        let rect = globals()
             .compositor()
             .create_sprite_shape_with_geometry(rect_geometry)?;
         rect.set_fill_brush(brush)?;

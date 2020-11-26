@@ -21,7 +21,7 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle},
+    main_window::{globals, Handle, Panel, PanelEventProxy, PanelHandle},
 };
 
 #[derive(Copy, Clone)]
@@ -56,16 +56,16 @@ pub struct TextPanel {
 }
 
 impl TextPanel {
-    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
-        let compositor = globals.compositor().clone();
-        let canvas_device = globals.canvas_device().clone();
-        let composition_graphics_device = globals.composition_graphics_device().clone();
+    pub fn new() -> winrt::Result<Self> {
+        let compositor = globals().compositor().clone();
+        let canvas_device = globals().canvas_device().clone();
+        let composition_graphics_device = globals().composition_graphics_device().clone();
         let visual = compositor.create_sprite_visual()?;
         let surface = None;
         let enabled = true;
         let text_color = Colors::black()?;
         Ok(Self {
-            id: globals.get_next_id(),
+            id: globals().get_next_id(),
             text: "".into(),
             enabled,
             text_color,
@@ -136,7 +136,7 @@ impl TextPanel {
             ds.draw_text_layout_at_coords_with_color(text_layout, 0., 0., color)
         } else {
             Ok(())
-            }
+        }
     }
 }
 

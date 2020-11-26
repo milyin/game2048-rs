@@ -8,7 +8,8 @@ use crate::{
     background_panel::BackgroundPanelBuilder,
     button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
     control::ControlManager,
-    main_window::{Handle, Panel, PanelGlobals, PanelHandle},
+    main_window::globals,
+    main_window::{Handle, Panel, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     text_panel::TextPanel,
@@ -45,31 +46,29 @@ pub struct MessageBoxPanel {
 
 impl MessageBoxPanel {
     pub fn new<S: Into<Cow<'static, str>>>(
-        globals: &PanelGlobals,
         message: S,
         button_flags: BitFlags<MessageBoxButton>,
     ) -> winrt::Result<Self> {
-        let globals = globals.clone();
-        let visual = globals.compositor().create_container_visual()?;
-        let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
+        let visual = globals().compositor().create_container_visual()?;
+        let mut root_panel = RibbonPanel::new(RibbonOrientation::Stack)?;
         visual.children()?.insert_at_top(root_panel.visual())?;
         let mut background_panel = BackgroundPanelBuilder::default()
             .color(Colors::wheat()?)
             .round_corners(true)
-            .build(&globals)?;
+            .build()?;
         background_panel.set_round_corners(true)?;
         background_panel.set_color(Colors::wheat()?)?;
         root_panel.push_panel(background_panel, 1.0)?;
-        let mut message_panel = TextPanel::new(&globals)?;
+        let mut message_panel = TextPanel::new()?;
         message_panel.set_text(message)?;
-        let mut button_yes = ButtonPanel::new(&globals)?;
-        let mut button_no = ButtonPanel::new(&globals)?;
-        let mut button_ok = ButtonPanel::new(&globals)?;
-        let mut button_cancel = ButtonPanel::new(&globals)?;
-        let mut text_yes = TextPanel::new(&globals)?;
-        let mut text_no = TextPanel::new(&globals)?;
-        let mut text_ok = TextPanel::new(&globals)?;
-        let mut text_cancel = TextPanel::new(&globals)?;
+        let mut button_yes = ButtonPanel::new()?;
+        let mut button_no = ButtonPanel::new()?;
+        let mut button_ok = ButtonPanel::new()?;
+        let mut button_cancel = ButtonPanel::new()?;
+        let mut text_yes = TextPanel::new()?;
+        let mut text_no = TextPanel::new()?;
+        let mut text_ok = TextPanel::new()?;
+        let mut text_cancel = TextPanel::new()?;
         let handle_yes = button_yes.handle();
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
@@ -82,9 +81,9 @@ impl MessageBoxPanel {
         button_no.add_panel(text_no)?;
         button_ok.add_panel(text_ok)?;
         button_cancel.add_panel(text_cancel)?;
-        let mut ribbon = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
+        let mut ribbon = RibbonPanel::new(RibbonOrientation::Vertical)?;
         ribbon.push_panel(message_panel, 1.0)?;
-        let mut ribbon_buttons = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
+        let mut ribbon_buttons = RibbonPanel::new(RibbonOrientation::Horizontal)?;
         let mut control_manager = ControlManager::new();
         if button_flags.contains(MessageBoxButton::Yes) {
             ribbon_buttons.push_panel(button_yes, 1.0)?;
@@ -106,7 +105,7 @@ impl MessageBoxPanel {
         root_panel.push_panel(ribbon, 1.0)?;
 
         Ok(Self {
-            id: globals.get_next_id(),
+            id: globals().get_next_id(),
             visual,
             root_panel,
             control_manager,

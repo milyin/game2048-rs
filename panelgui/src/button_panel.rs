@@ -12,9 +12,7 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{
-        winrt_error, Handle, Panel, PanelEvent, PanelEventProxy, PanelGlobals, PanelHandle,
-    },
+    main_window::{globals, winrt_error, Handle, Panel, PanelEvent, PanelEventProxy, PanelHandle},
 };
 
 #[derive(PartialEq)]
@@ -29,7 +27,6 @@ enum ButtonMode {
 }
 pub struct ButtonPanel {
     id: usize,
-    globals: PanelGlobals,
     panel: Option<Box<dyn Control>>,
     visual: ContainerVisual,
     background: ShapeVisual,
@@ -58,14 +55,12 @@ impl ControlHandle for ButtonPanelHandle {
 }
 
 impl ButtonPanel {
-    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
-        let globals = globals.clone();
-        let visual = globals.compositor().create_container_visual()?;
-        let background = globals.compositor().create_shape_visual()?;
+    pub fn new() -> winrt::Result<Self> {
+        let visual = globals().compositor().create_container_visual()?;
+        let background = globals().compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
         Ok(Self {
-            id: globals.get_next_id(),
-            globals,
+            id: globals().get_next_id(),
             panel: None,
             visual,
             background,
@@ -102,17 +97,13 @@ impl ButtonPanel {
                 return Ok(shape.clone());
             }
         }
-        let shape = Self::create_shape(&self.globals, mode, &size)?;
+        let shape = Self::create_shape(mode, &size)?;
         self.shapes.insert(mode, (size, shape.clone()));
         Ok(shape)
     }
-    fn create_shape(
-        globals: &PanelGlobals,
-        mode: ButtonMode,
-        size: &Vector2,
-    ) -> winrt::Result<CompositionShape> {
-        let container_shape = globals.compositor().create_container_shape()?;
-        let round_rect_geometry = globals.compositor().create_rounded_rectangle_geometry()?;
+    fn create_shape(mode: ButtonMode, size: &Vector2) -> winrt::Result<CompositionShape> {
+        let container_shape = globals().compositor().create_container_shape()?;
+        let round_rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
         let offset = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
         round_rect_geometry.set_corner_radius(Vector2 {
             x: offset,
@@ -134,13 +125,13 @@ impl ButtonPanel {
             ButtonMode::Disabled => (Colors::white()?, 1.),
             ButtonMode::Focused => (Colors::black()?, 1.),
         };
-        let fill_brush = globals
+        let fill_brush = globals()
             .compositor()
             .create_color_brush_with_color(Colors::white()?)?;
-        let stroke_brush = globals
+        let stroke_brush = globals()
             .compositor()
             .create_color_brush_with_color(border_color)?;
-        let rect = globals
+        let rect = globals()
             .compositor()
             .create_sprite_shape_with_geometry(round_rect_geometry)?;
         rect.set_fill_brush(fill_brush)?;

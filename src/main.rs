@@ -2,15 +2,14 @@ use std::any::Any;
 
 use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
-use panelgui::BackgroundPanelBuilder;
+use panelgui::{background_panel::BackgroundPanelBuilder, main_window::globals};
 use panelgui::{
     button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
     control::{Control, ControlManager},
-    interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
     main_window::winrt_error,
     main_window::Handle,
     main_window::PanelHandle,
-    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
+    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy},
     message_box_panel::MessageBoxButton,
     message_box_panel::MessageBoxPanel,
     message_box_panel::MessageBoxPanelHandle,
@@ -23,7 +22,6 @@ mod game_field_panel;
 
 struct MainPanel {
     id: usize,
-    globals: PanelGlobals,
     visual: ContainerVisual,
     root_panel: RibbonPanel,
     control_manager: ControlManager,
@@ -35,21 +33,20 @@ struct MainPanel {
 }
 
 impl MainPanel {
-    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
-        let globals = globals.clone();
-        let id = globals.get_next_id();
-        let visual = globals.compositor().create_container_visual()?;
+    pub fn new() -> winrt::Result<Self> {
+        let id = globals().get_next_id();
+        let visual = globals().compositor().create_container_visual()?;
 
-        let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
-        let background_panel = BackgroundPanelBuilder::default().build(&globals)?;
-        let game_field_panel = GameFieldPanel::new(&globals)?;
-        let score_panel = TextPanel::new(&globals)?;
-        let mut undo_button_panel = ButtonPanel::new(&globals)?;
-        let mut undo_button_text_panel = TextPanel::new(&globals)?;
-        let mut reset_button_panel = ButtonPanel::new(&globals)?;
-        let mut reset_button_text_panel = TextPanel::new(&globals)?;
-        let mut vribbon_panel = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
-        let mut hribbon_panel = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
+        let mut root_panel = RibbonPanel::new(RibbonOrientation::Stack)?;
+        let background_panel = BackgroundPanelBuilder::default().build()?;
+        let game_field_panel = GameFieldPanel::new()?;
+        let score_panel = TextPanel::new()?;
+        let mut undo_button_panel = ButtonPanel::new()?;
+        let mut undo_button_text_panel = TextPanel::new()?;
+        let mut reset_button_panel = ButtonPanel::new()?;
+        let mut reset_button_text_panel = TextPanel::new()?;
+        let mut vribbon_panel = RibbonPanel::new(RibbonOrientation::Vertical)?;
+        let mut hribbon_panel = RibbonPanel::new(RibbonOrientation::Horizontal)?;
 
         // Take handles
         let game_field_handle = game_field_panel.handle();
@@ -79,7 +76,6 @@ impl MainPanel {
 
         Ok(Self {
             id,
-            globals,
             visual,
             root_panel,
             control_manager,
@@ -106,7 +102,6 @@ impl MainPanel {
 
     fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         let message_box = MessageBoxPanel::new(
-            &self.globals,
             "Start new game?",
             MessageBoxButton::Yes | MessageBoxButton::No,
         )?;
@@ -231,11 +226,9 @@ impl Panel for MainPanel {
 }
 
 fn run() -> winrt::Result<()> {
-    ro_initialize(RoInitType::MultiThreaded)?;
-    let _controller = create_dispatcher_queue_controller_for_current_thread()?;
     let mut window = MainWindow::new()?;
     window.window().set_title("2048");
-    let main_panel = MainPanel::new(window.get_globals())?;
+    let main_panel = MainPanel::new()?;
     window.run(main_panel)
 }
 fn main() {
