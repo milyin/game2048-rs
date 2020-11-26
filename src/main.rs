@@ -2,22 +2,8 @@ use std::any::Any;
 
 use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
-use panelgui::{
-    background_panel::BackgroundPanel,
-    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
-    control::{Control, ControlManager},
-    interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
-    main_window::winrt_error,
-    main_window::Handle,
-    main_window::PanelHandle,
-    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
-    message_box_panel::MessageBoxButton,
-    message_box_panel::MessageBoxPanel,
-    message_box_panel::MessageBoxPanelHandle,
-    ribbon_panel::RibbonOrientation,
-    ribbon_panel::RibbonPanel,
-    text_panel::{TextPanel, TextPanelHandle},
-};
+use panelgui::{background_panel::BackgroundPanel, button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle}, control::{Control, ControlManager}, interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType}, main_window::Handle, main_window::PanelHandle, main_window::winrt_error, main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals}, message_box_panel::MessageBoxButton, message_box_panel::MessageBoxPanel, message_box_panel::MessageBoxPanelHandle, ribbon_panel::RibbonOrientation, ribbon_panel::RibbonPanel, text_panel::{TextPanel, TextPanelHandle}};
+use panelgui::BackgroundPanelBuilder;
 
 mod game_field_panel;
 
@@ -39,6 +25,8 @@ impl MainPanel {
         let globals = globals.clone();
         let id = globals.get_next_id();
         let visual = globals.compositor().create_container_visual()?;
+
+        let background = BackgroundPanelBuilder::default().build().unwrap();
 
         let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
         let background_panel = BackgroundPanel::new(&globals)?;
