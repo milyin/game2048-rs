@@ -6,7 +6,7 @@ use bindings::windows::ui::composition::ContainerVisual;
 
 use crate::{
     background_panel::BackgroundPanel,
-    button_panel::{ButtonPanel, ButtonPanelHandle},
+    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
     control::ControlManager,
     main_window::{Handle, Panel, PanelGlobals, PanelHandle},
     ribbon_panel::RibbonOrientation,
@@ -22,15 +22,15 @@ impl Handle for MessageBoxPanelHandle {
     }
 }
 
-impl PanelHandle<MessageBoxPanel> for MessageBoxPanelHandle {}
-
-#[derive(Copy, Clone, BitFlags)]
+#[derive(Copy, Clone, BitFlags, PartialEq)]
 pub enum MessageBoxButton {
     Ok = 0b1,
     Cancel = 0b10,
     Yes = 0b100,
     No = 0b1000,
 }
+
+impl PanelHandle<MessageBoxPanel, MessageBoxButton> for MessageBoxPanelHandle {}
 
 pub struct MessageBoxPanel {
     id: usize,
@@ -188,8 +188,21 @@ impl Panel for MessageBoxPanel {
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<()> {
         self.root_panel.on_panel_event(panel_event, proxy)?;
-        self.control_manager
-            .process_panel_event(panel_event, &mut self.root_panel, proxy)?;
+        if self.handle_yes.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+            proxy.send_panel_event(self.id, MessageBoxButton::Yes)?;
+        }
+        if self.handle_no.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+            proxy.send_panel_event(self.id, MessageBoxButton::No)?;
+        }
+        if self.handle_cancel.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+            proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
+        }
+        if self.handle_ok.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+            proxy.send_panel_event(self.id, MessageBoxButton::Ok)?;
+        } else {
+            self.control_manager
+                .process_panel_event(panel_event, &mut self.root_panel, proxy)?;
+        }
         Ok(())
     }
 }

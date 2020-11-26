@@ -89,13 +89,13 @@ pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
         }
         Err(winrt_error("Can't find panel"))
     }
-    fn extract_event(&self, event: &mut PanelEvent) -> Option<PanelEventType> {
-        if event.panel_id == self.id() {
-            if let Some(data) = event.data.take() {
+    fn extract_event(&self, panel_event: &mut PanelEvent) -> Option<PanelEventType> {
+        if panel_event.panel_id == self.id() {
+            if let Some(data) = panel_event.data.take() {
                 match data.downcast::<PanelEventType>() {
                     Ok(e) => Some(*e),
                     Err(data) => {
-                        event.data = Some(data);
+                        panel_event.data = Some(data);
                         None
                     }
                 }

@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{Panel, PanelEventProxy, PanelGlobals};
+use crate::main_window::{winrt_error, Panel, PanelEventProxy, PanelGlobals};
 
 #[derive(PartialEq)]
 pub enum RibbonOrientation {
@@ -46,7 +46,7 @@ impl RibbonPanel {
         let container = self.globals.compositor().create_container_visual()?;
         container
             .children()?
-            .insert_at_bottom(panel.visual().clone())?;
+            .insert_at_top(panel.visual().clone())?;
         self.ribbon.children()?.insert_at_top(container.clone())?;
         let cell = RibbonCell {
             panel: Box::new(panel),
@@ -57,12 +57,14 @@ impl RibbonPanel {
         self.resize_cells()?;
         Ok(())
     }
-    pub fn pop_panel(&mut self) -> winrt::Result<()> {
+    pub fn pop_panel(&mut self) -> winrt::Result<Box<dyn Panel>> {
         if let Some(cell) = self.cells.pop() {
             self.ribbon.children()?.remove(cell.container)?;
             self.resize_cells()?;
+            Ok(cell.panel)
+        } else {
+            Err(winrt_error("Ribbon is empty"))
         }
-        Ok(())
     }
 
     fn resize_cells(&mut self) -> winrt::Result<()> {
@@ -111,6 +113,13 @@ impl RibbonPanel {
         Ok(())
     }
 
+    pub fn adjust_cells(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        for p in &mut self.cells {
+            p.panel.on_resize(&p.container.size()?, proxy)?;
+        }
+        Ok(())
+    }
+
     fn get_cell_by_mouse_position<'a>(
         &'a mut self,
         position: &Vector2,
@@ -142,9 +151,7 @@ impl Panel for RibbonPanel {
     fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
         self.ribbon.set_size(size)?;
         self.resize_cells()?;
-        for p in &mut self.cells {
-            p.panel.on_resize(&p.container.size()?, proxy)?;
-        }
+        self.adjust_cells(proxy)?;
         Ok(())
     }
 
@@ -197,7 +204,7 @@ impl Panel for RibbonPanel {
         input: winit::event::KeyboardInput,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        for p in &mut self.cells {
+        for p in &mut self.cells.iter_mut().rev() {
             if p.panel.on_keyboard_input(input, proxy)? {
                 return Ok(true);
             }

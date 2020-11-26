@@ -7,10 +7,13 @@ use panelgui::{
     button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
     control::{Control, ControlManager},
     interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
+    main_window::winrt_error,
+    main_window::Handle,
     main_window::PanelHandle,
     main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
     message_box_panel::MessageBoxButton,
     message_box_panel::MessageBoxPanel,
+    message_box_panel::MessageBoxPanelHandle,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     text_panel::{TextPanel, TextPanelHandle},
@@ -20,6 +23,7 @@ mod game_field_panel;
 
 struct MainPanel {
     id: usize,
+    globals: PanelGlobals,
     visual: ContainerVisual,
     root_panel: RibbonPanel,
     control_manager: ControlManager,
@@ -27,6 +31,7 @@ struct MainPanel {
     undo_button_handle: ButtonPanelHandle,
     reset_button_handle: ButtonPanelHandle,
     score_handle: TextPanelHandle,
+    message_box_reset_handle: Option<MessageBoxPanelHandle>,
 }
 
 impl MainPanel {
@@ -72,18 +77,11 @@ impl MainPanel {
         control_manager.add_control(undo_button_handle.clone());
         control_manager.add_control(reset_button_handle.clone());
 
-        let message_box = MessageBoxPanel::new(
-            &globals,
-            "This is a test",
-            MessageBoxButton::Ok
-                | MessageBoxButton::Cancel
-                | MessageBoxButton::Yes
-                | MessageBoxButton::No,
-        )?;
         //root_panel.push_panel(message_box, 1.0)?;
 
         Ok(Self {
             id,
+            globals,
             visual,
             root_panel,
             control_manager,
@@ -91,6 +89,7 @@ impl MainPanel {
             undo_button_handle,
             reset_button_handle,
             score_handle,
+            message_box_reset_handle: None,
         })
     }
 
@@ -105,6 +104,28 @@ impl MainPanel {
             .at(&mut self.root_panel)?
             .set_text(score.to_string())?;
         Ok(())
+    }
+
+    fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        let message_box = MessageBoxPanel::new(
+            &self.globals,
+            "Do you want to start new game?",
+            MessageBoxButton::Yes | MessageBoxButton::No,
+        )?;
+        self.message_box_reset_handle = Some(message_box.handle());
+        self.root_panel.push_panel(message_box, 1.0)?;
+        self.root_panel.adjust_cells(proxy)?;
+        Ok(())
+    }
+
+    fn close_message_box_reset(&mut self) -> winrt::Result<()> {
+        if let Some(handle) = self.message_box_reset_handle.take() {
+            let panel = self.root_panel.pop_panel()?;
+            assert!(panel.id() == handle.id());
+            Ok(())
+        } else {
+            Err(winrt_error("Message box was not open"))
+        }
     }
 }
 
@@ -188,9 +209,16 @@ impl Panel for MainPanel {
         } else if self.reset_button_handle.extract_event(panel_event)
             == Some(ButtonPanelEvent::Pressed)
         {
-            self.game_field_handle
-                .at(&mut self.root_panel)?
-                .reset(proxy)?;
+            self.open_message_box_reset(proxy)?;
+        } else if let Some(h) = self.message_box_reset_handle.as_ref() {
+            if let Some(cmd) = h.extract_event(panel_event) {
+                self.close_message_box_reset()?;
+                if cmd == MessageBoxButton::Yes {
+                    self.game_field_handle
+                        .at(&mut self.root_panel)?
+                        .reset(proxy)?;
+                }
+            }
         } else if self.game_field_handle.extract_event(panel_event)
             == Some(GameFieldPanelEvent::Changed)
         {
