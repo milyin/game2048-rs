@@ -5,7 +5,7 @@ use enumflags2::BitFlags;
 use bindings::windows::ui::{composition::ContainerVisual, Colors};
 
 use crate::{
-    background_panel::BackgroundPanel,
+    background_panel::BackgroundPanelBuilder,
     button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
     control::ControlManager,
     main_window::{Handle, Panel, PanelGlobals, PanelHandle},
@@ -53,7 +53,10 @@ impl MessageBoxPanel {
         let visual = globals.compositor().create_container_visual()?;
         let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
         visual.children()?.insert_at_top(root_panel.visual())?;
-        let mut background_panel = BackgroundPanel::new(&globals)?;
+        let mut background_panel = BackgroundPanelBuilder::default()
+            .color(Colors::wheat()?)
+            .round_corners(true)
+            .build(&globals)?;
         background_panel.set_round_corners(true)?;
         background_panel.set_color(Colors::wheat()?)?;
         root_panel.push_panel(background_panel, 1.0)?;

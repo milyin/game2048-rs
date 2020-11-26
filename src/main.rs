@@ -2,8 +2,22 @@ use std::any::Any;
 
 use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
-use panelgui::{background_panel::BackgroundPanel, button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle}, control::{Control, ControlManager}, interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType}, main_window::Handle, main_window::PanelHandle, main_window::winrt_error, main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals}, message_box_panel::MessageBoxButton, message_box_panel::MessageBoxPanel, message_box_panel::MessageBoxPanelHandle, ribbon_panel::RibbonOrientation, ribbon_panel::RibbonPanel, text_panel::{TextPanel, TextPanelHandle}};
 use panelgui::BackgroundPanelBuilder;
+use panelgui::{
+    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
+    control::{Control, ControlManager},
+    interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
+    main_window::winrt_error,
+    main_window::Handle,
+    main_window::PanelHandle,
+    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
+    message_box_panel::MessageBoxButton,
+    message_box_panel::MessageBoxPanel,
+    message_box_panel::MessageBoxPanelHandle,
+    ribbon_panel::RibbonOrientation,
+    ribbon_panel::RibbonPanel,
+    text_panel::{TextPanel, TextPanelHandle},
+};
 
 mod game_field_panel;
 
@@ -26,10 +40,8 @@ impl MainPanel {
         let id = globals.get_next_id();
         let visual = globals.compositor().create_container_visual()?;
 
-        let background = BackgroundPanelBuilder::default().build().unwrap();
-
         let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
-        let background_panel = BackgroundPanel::new(&globals)?;
+        let background_panel = BackgroundPanelBuilder::default().build(&globals)?;
         let game_field_panel = GameFieldPanel::new(&globals)?;
         let score_panel = TextPanel::new(&globals)?;
         let mut undo_button_panel = ButtonPanel::new(&globals)?;
@@ -64,8 +76,6 @@ impl MainPanel {
         let mut control_manager = ControlManager::new();
         control_manager.add_control(undo_button_handle.clone());
         control_manager.add_control(reset_button_handle.clone());
-
-        //root_panel.push_panel(message_box, 1.0)?;
 
         Ok(Self {
             id,
@@ -232,6 +242,7 @@ fn main() {
     let result = run();
     // We do this for nicer HRESULT printing when errors occur.
     if let Err(error) = result {
+        dbg!(&error);
         error.code().unwrap();
     }
 }
