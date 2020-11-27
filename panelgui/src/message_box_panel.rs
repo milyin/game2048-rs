@@ -6,7 +6,7 @@ use bindings::windows::ui::{composition::ContainerVisual, Colors};
 
 use crate::{
     background_panel::BackgroundPanelBuilder,
-    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
+    button_panel::{ButtonPanelBuilder, ButtonPanelEvent, ButtonPanelHandle},
     control::ControlManager,
     main_window::globals,
     main_window::{Handle, Panel, PanelHandle},
@@ -61,10 +61,10 @@ impl MessageBoxPanel {
         root_panel.push_panel(background_panel, 1.0)?;
         let mut message_panel = TextPanel::new()?;
         message_panel.set_text(message)?;
-        let mut button_yes = ButtonPanel::new()?;
-        let mut button_no = ButtonPanel::new()?;
-        let mut button_ok = ButtonPanel::new()?;
-        let mut button_cancel = ButtonPanel::new()?;
+        let mut button_yes = ButtonPanelBuilder::default().build()?;
+        let mut button_no = ButtonPanelBuilder::default().build()?;
+        let mut button_ok = ButtonPanelBuilder::default().build()?;
+        let mut button_cancel = ButtonPanelBuilder::default().build()?;
         let mut text_yes = TextPanel::new()?;
         let mut text_no = TextPanel::new()?;
         let mut text_ok = TextPanel::new()?;
@@ -77,10 +77,10 @@ impl MessageBoxPanel {
         text_no.set_text("No")?;
         text_ok.set_text("OK")?;
         text_cancel.set_text("Cancel")?;
-        button_yes.add_panel(text_yes)?;
-        button_no.add_panel(text_no)?;
-        button_ok.add_panel(text_ok)?;
-        button_cancel.add_panel(text_cancel)?;
+        button_yes.set_panel(text_yes)?;
+        button_no.set_panel(text_no)?;
+        button_ok.set_panel(text_ok)?;
+        button_cancel.set_panel(text_cancel)?;
         let mut ribbon = RibbonPanel::new(RibbonOrientation::Vertical)?;
         ribbon.push_panel(message_panel, 1.0)?;
         let mut ribbon_buttons = RibbonPanel::new(RibbonOrientation::Horizontal)?;

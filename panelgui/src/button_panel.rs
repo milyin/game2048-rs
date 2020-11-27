@@ -25,12 +25,15 @@ enum ButtonMode {
     Disabled,
     Focused,
 }
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_default"), setter(skip))]
 pub struct ButtonPanel {
     id: usize,
     panel: Option<Box<dyn Control>>,
     visual: ContainerVisual,
     background: ShapeVisual,
     shapes: HashMap<ButtonMode, (Vector2, CompositionShape)>,
+    #[builder(setter(into), default="true")]
     enabled: bool,
     focused: bool,
 }
@@ -53,26 +56,32 @@ impl ControlHandle for ButtonPanelHandle {
         self.at(root_panel).ok().map(|p| p as &mut dyn Control)
     }
 }
+impl ButtonPanelBuilder {
+    pub fn build(&self) -> winrt::Result<ButtonPanel> {
+        match self.build_default() {
+            Ok(mut panel) => {
+                panel.finish_build()?;
+                Ok(panel)
+            }
+            Err(e) => {
+                Err(winrt_error(e))
+            }
+        }
+    }
+}
 
 impl ButtonPanel {
-    pub fn new() -> winrt::Result<Self> {
-        let visual = globals().compositor().create_container_visual()?;
-        let background = globals().compositor().create_shape_visual()?;
-        visual.children()?.insert_at_bottom(background.clone())?;
-        Ok(Self {
-            id: globals().get_next_id(),
-            panel: None,
-            visual,
-            background,
-            shapes: HashMap::new(),
-            enabled: true,
-            focused: false,
-        })
+    fn finish_build(&mut self) -> winrt::Result<()> {
+        self.id = globals().get_next_id();
+        self.visual = globals().compositor().create_container_visual()?;
+        self.background = globals().compositor().create_shape_visual()?;
+        self.visual.children()?.insert_at_bottom(self.background.clone())?;
+        Ok(())
     }
     pub fn handle(&self) -> ButtonPanelHandle {
         ButtonPanelHandle { id: self.id }
     }
-    pub fn add_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+    pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
         self.visual
             .children()?
             .insert_at_top(panel.visual().clone())?;

@@ -32,7 +32,6 @@ impl BackgroundPanelBuilder {
                 Ok(panel)
             }
             Err(e) => {
-                dbg!(&e);
                 Err(winrt_error(e))
             }
         }

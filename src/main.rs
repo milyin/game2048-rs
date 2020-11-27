@@ -4,7 +4,7 @@ use bindings::windows::{foundation::numerics::Vector2, ui::composition::Containe
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{background_panel::BackgroundPanelBuilder, main_window::globals};
 use panelgui::{
-    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
+    button_panel::{ButtonPanelBuilder, ButtonPanelEvent, ButtonPanelHandle},
     control::{Control, ControlManager},
     main_window::winrt_error,
     main_window::Handle,
@@ -41,9 +41,9 @@ impl MainPanel {
         let background_panel = BackgroundPanelBuilder::default().build()?;
         let game_field_panel = GameFieldPanel::new()?;
         let score_panel = TextPanel::new()?;
-        let mut undo_button_panel = ButtonPanel::new()?;
+        let mut undo_button_panel = ButtonPanelBuilder::default().build()?;
         let mut undo_button_text_panel = TextPanel::new()?;
-        let mut reset_button_panel = ButtonPanel::new()?;
+        let mut reset_button_panel = ButtonPanelBuilder::default().build()?;
         let mut reset_button_text_panel = TextPanel::new()?;
         let mut vribbon_panel = RibbonPanel::new(RibbonOrientation::Vertical)?;
         let mut hribbon_panel = RibbonPanel::new(RibbonOrientation::Horizontal)?;
@@ -57,8 +57,8 @@ impl MainPanel {
         undo_button_text_panel.set_text("⮌")?;
         reset_button_text_panel.set_text("⭯")?;
 
-        undo_button_panel.add_panel(undo_button_text_panel)?;
-        reset_button_panel.add_panel(reset_button_text_panel)?;
+        undo_button_panel.set_panel(undo_button_text_panel)?;
+        reset_button_panel.set_panel(reset_button_text_panel)?;
         hribbon_panel.push_panel(undo_button_panel, 1.)?;
         hribbon_panel.push_panel(score_panel, 1.)?;
         hribbon_panel.push_panel(reset_button_panel, 1.)?;
