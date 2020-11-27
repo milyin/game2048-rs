@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual};
+use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{background_panel::BackgroundPanelBuilder, main_window::globals};
 use panelgui::{
@@ -38,7 +38,7 @@ impl MainPanel {
         let visual = globals().compositor().create_container_visual()?;
 
         let mut root_panel = RibbonPanel::new(RibbonOrientation::Stack)?;
-        let background_panel = BackgroundPanelBuilder::default().build()?;
+        let background_panel = BackgroundPanelBuilder::default().color(Colors::white()?).build()?;
         let game_field_panel = GameFieldPanel::new()?;
         let score_panel = TextPanel::new()?;
         let mut undo_button_panel = ButtonPanelBuilder::default().build()?;
