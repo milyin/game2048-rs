@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use enumflags2::BitFlags;
 
 use bindings::windows::ui::{composition::ContainerVisual, Colors};
+use winit::event::VirtualKeyCode;
 
 use crate::{
     background_panel::BackgroundPanelBuilder,
@@ -231,6 +232,12 @@ impl Panel for MessageBoxPanel {
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<bool> {
         if let Some(ref mut internals) = self.internals {
+            if let Some(key) = input.virtual_keycode {
+                if key == VirtualKeyCode::Escape {
+                    proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
+                    return Ok(true);
+                }
+            }
             Ok(internals.root_panel.on_keyboard_input(input, proxy)?
                 || internals.control_manager.process_keyboard_input(
                     input,
