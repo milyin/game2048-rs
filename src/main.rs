@@ -13,7 +13,7 @@ use panelgui::{
     main_window::PanelHandle,
     main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy},
     message_box_panel::MessageBoxButton,
-    message_box_panel::MessageBoxPanel,
+    message_box_panel::MessageBoxPanelBuilder,
     message_box_panel::MessageBoxPanelHandle,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
@@ -109,10 +109,10 @@ impl MainPanel {
     }
 
     fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        let message_box = MessageBoxPanel::new(
-            "Start new game?",
-            MessageBoxButton::Yes | MessageBoxButton::No,
-        )?;
+        let message_box = MessageBoxPanelBuilder::default()
+            .message("Start new game?")
+            .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
+            .build()?;
         self.message_box_reset_handle = Some(message_box.handle());
         self.root_panel
             .push_panel_sized(message_box, 1.0, Vector2 { x: 0.9, y: 0.4 })?;
