@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate derive_builder;
+
 pub mod background_panel;
 pub mod button_panel;
 pub mod control;

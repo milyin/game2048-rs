@@ -1,29 +1,30 @@
 use std::any::Any;
 
-use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual};
+use bindings::windows::{
+    foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors,
+};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
+use panelgui::{background_panel::BackgroundPanelBuilder, main_window::globals};
 use panelgui::{
-    background_panel::BackgroundPanel,
-    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
+    button_panel::{ButtonPanelBuilder, ButtonPanelEvent, ButtonPanelHandle},
     control::{Control, ControlManager},
-    interop::{create_dispatcher_queue_controller_for_current_thread, ro_initialize, RoInitType},
     main_window::winrt_error,
     main_window::Handle,
     main_window::PanelHandle,
-    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy, PanelGlobals},
+    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy},
     message_box_panel::MessageBoxButton,
-    message_box_panel::MessageBoxPanel,
+    message_box_panel::MessageBoxPanelBuilder,
     message_box_panel::MessageBoxPanelHandle,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
-    text_panel::{TextPanel, TextPanelHandle},
+    ribbon_panel::RibbonPanelBuilder,
+    text_panel::{TextPanelBuilder, TextPanelHandle},
 };
 
 mod game_field_panel;
 
 struct MainPanel {
     id: usize,
-    globals: PanelGlobals,
     visual: ContainerVisual,
     root_panel: RibbonPanel,
     control_manager: ControlManager,
@@ -35,21 +36,28 @@ struct MainPanel {
 }
 
 impl MainPanel {
-    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
-        let globals = globals.clone();
-        let id = globals.get_next_id();
-        let visual = globals.compositor().create_container_visual()?;
+    pub fn new() -> winrt::Result<Self> {
+        let id = globals().get_next_id();
+        let visual = globals().compositor().create_container_visual()?;
 
-        let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
-        let background_panel = BackgroundPanel::new(&globals)?;
-        let game_field_panel = GameFieldPanel::new(&globals)?;
-        let score_panel = TextPanel::new(&globals)?;
-        let mut undo_button_panel = ButtonPanel::new(&globals)?;
-        let mut undo_button_text_panel = TextPanel::new(&globals)?;
-        let mut reset_button_panel = ButtonPanel::new(&globals)?;
-        let mut reset_button_text_panel = TextPanel::new(&globals)?;
-        let mut vribbon_panel = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
-        let mut hribbon_panel = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
+        let mut root_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Stack)
+            .build()?;
+        let background_panel = BackgroundPanelBuilder::default()
+            .color(Colors::white()?)
+            .build()?;
+        let game_field_panel = GameFieldPanel::new()?;
+        let score_panel = TextPanelBuilder::default().build()?;
+        let mut undo_button_panel = ButtonPanelBuilder::default().build()?;
+        let undo_button_text_panel = TextPanelBuilder::default().text("⮌").build()?;
+        let mut reset_button_panel = ButtonPanelBuilder::default().build()?;
+        let reset_button_text_panel = TextPanelBuilder::default().text("⭯").build()?;
+        let mut vribbon_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Vertical)
+            .build()?;
+        let mut hribbon_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Horizontal)
+            .build()?;
 
         // Take handles
         let game_field_handle = game_field_panel.handle();
@@ -57,11 +65,8 @@ impl MainPanel {
         let undo_button_handle = undo_button_panel.handle();
         let reset_button_handle = reset_button_panel.handle();
 
-        undo_button_text_panel.set_text("⮌")?;
-        reset_button_text_panel.set_text("⭯")?;
-
-        undo_button_panel.add_panel(undo_button_text_panel)?;
-        reset_button_panel.add_panel(reset_button_text_panel)?;
+        undo_button_panel.set_panel(undo_button_text_panel)?;
+        reset_button_panel.set_panel(reset_button_text_panel)?;
         hribbon_panel.push_panel(undo_button_panel, 1.)?;
         hribbon_panel.push_panel(score_panel, 1.)?;
         hribbon_panel.push_panel(reset_button_panel, 1.)?;
@@ -77,11 +82,8 @@ impl MainPanel {
         control_manager.add_control(undo_button_handle.clone());
         control_manager.add_control(reset_button_handle.clone());
 
-        //root_panel.push_panel(message_box, 1.0)?;
-
         Ok(Self {
             id,
-            globals,
             visual,
             root_panel,
             control_manager,
@@ -107,11 +109,10 @@ impl MainPanel {
     }
 
     fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        let message_box = MessageBoxPanel::new(
-            &self.globals,
-            "Start new game?",
-            MessageBoxButton::Yes | MessageBoxButton::No,
-        )?;
+        let message_box = MessageBoxPanelBuilder::default()
+            .message("Start new game?")
+            .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
+            .build()?;
         self.message_box_reset_handle = Some(message_box.handle());
         self.root_panel
             .push_panel_sized(message_box, 1.0, Vector2 { x: 0.9, y: 0.4 })?;
@@ -233,17 +234,16 @@ impl Panel for MainPanel {
 }
 
 fn run() -> winrt::Result<()> {
-    ro_initialize(RoInitType::MultiThreaded)?;
-    let _controller = create_dispatcher_queue_controller_for_current_thread()?;
     let mut window = MainWindow::new()?;
     window.window().set_title("2048");
-    let main_panel = MainPanel::new(window.get_globals())?;
+    let main_panel = MainPanel::new()?;
     window.run(main_panel)
 }
 fn main() {
     let result = run();
     // We do this for nicer HRESULT printing when errors occur.
     if let Err(error) = result {
+        dbg!(&error);
         error.code().unwrap();
     }
 }

@@ -17,7 +17,7 @@ use bindings::{
 };
 use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
-use panelgui::main_window::{Handle, Panel, PanelEventProxy, PanelGlobals, PanelHandle};
+use panelgui::main_window::{globals, Handle, Panel, PanelEventProxy, PanelHandle};
 use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 const TILE_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
@@ -177,8 +177,8 @@ impl Panel for GameFieldPanel {
 }
 
 impl GameFieldPanel {
-    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
-        let compositor = globals.compositor().clone();
+    pub fn new() -> winrt::Result<Self> {
+        let compositor = globals().compositor().clone();
         let root = compositor.create_sprite_visual()?;
         root.set_offset(Vector3 {
             x: 0.0,
@@ -205,10 +205,10 @@ impl GameFieldPanel {
         let (field, score) = Self::reset_field_and_score();
 
         let mut game_field = Self {
-            id: globals.get_next_id(),
+            id: globals().get_next_id(),
             compositor,
-            canvas_device: globals.canvas_device().clone(),
-            composition_graphics_device: globals.composition_graphics_device().clone(),
+            canvas_device: globals().canvas_device().clone(),
+            composition_graphics_device: globals().composition_graphics_device().clone(),
             root: root.into(),
             game_board_visual,
             game_board_tiles: HashMap::new(),

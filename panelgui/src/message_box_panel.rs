@@ -5,13 +5,16 @@ use enumflags2::BitFlags;
 use bindings::windows::ui::{composition::ContainerVisual, Colors};
 
 use crate::{
-    background_panel::BackgroundPanel,
-    button_panel::{ButtonPanel, ButtonPanelEvent, ButtonPanelHandle},
+    background_panel::BackgroundPanelBuilder,
+    button_panel::{ButtonPanelBuilder, ButtonPanelEvent, ButtonPanelHandle},
     control::ControlManager,
-    main_window::{Handle, Panel, PanelGlobals, PanelHandle},
+    main_window::globals,
+    main_window::winrt_error,
+    main_window::{Handle, Panel, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
-    text_panel::TextPanel,
+    ribbon_panel::RibbonPanelBuilder,
+    text_panel::TextPanelBuilder,
 };
 
 pub struct MessageBoxPanelHandle(usize);
@@ -32,56 +35,52 @@ pub enum MessageBoxButton {
 
 impl PanelHandle<MessageBoxPanel, MessageBoxButton> for MessageBoxPanelHandle {}
 
-pub struct MessageBoxPanel {
-    id: usize,
-    visual: ContainerVisual,
-    root_panel: RibbonPanel,
-    control_manager: ControlManager,
-    handle_yes: ButtonPanelHandle,
-    handle_no: ButtonPanelHandle,
-    handle_ok: ButtonPanelHandle,
-    handle_cancel: ButtonPanelHandle,
+struct MessageBoxPanelInternals {
+    pub root_panel: RibbonPanel,
+    pub control_manager: ControlManager,
+    pub handle_yes: ButtonPanelHandle,
+    pub handle_no: ButtonPanelHandle,
+    pub handle_ok: ButtonPanelHandle,
+    pub handle_cancel: ButtonPanelHandle,
 }
 
-impl MessageBoxPanel {
-    pub fn new<S: Into<Cow<'static, str>>>(
-        globals: &PanelGlobals,
-        message: S,
+impl MessageBoxPanelInternals {
+    fn new(
         button_flags: BitFlags<MessageBoxButton>,
+        message: Cow<'static, str>,
     ) -> winrt::Result<Self> {
-        let globals = globals.clone();
-        let visual = globals.compositor().create_container_visual()?;
-        let mut root_panel = RibbonPanel::new(&globals, RibbonOrientation::Stack)?;
-        visual.children()?.insert_at_top(root_panel.visual())?;
-        let mut background_panel = BackgroundPanel::new(&globals)?;
-        background_panel.set_round_corners(true)?;
-        background_panel.set_color(Colors::wheat()?)?;
+        let mut root_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Stack)
+            .build()?;
+        let background_panel = BackgroundPanelBuilder::default()
+            .color(Colors::wheat()?)
+            .round_corners(true)
+            .build()?;
         root_panel.push_panel(background_panel, 1.0)?;
-        let mut message_panel = TextPanel::new(&globals)?;
-        message_panel.set_text(message)?;
-        let mut button_yes = ButtonPanel::new(&globals)?;
-        let mut button_no = ButtonPanel::new(&globals)?;
-        let mut button_ok = ButtonPanel::new(&globals)?;
-        let mut button_cancel = ButtonPanel::new(&globals)?;
-        let mut text_yes = TextPanel::new(&globals)?;
-        let mut text_no = TextPanel::new(&globals)?;
-        let mut text_ok = TextPanel::new(&globals)?;
-        let mut text_cancel = TextPanel::new(&globals)?;
+        let message_panel = TextPanelBuilder::default().text(message).build()?;
+        let mut button_yes = ButtonPanelBuilder::default().build()?;
+        let mut button_no = ButtonPanelBuilder::default().build()?;
+        let mut button_ok = ButtonPanelBuilder::default().build()?;
+        let mut button_cancel = ButtonPanelBuilder::default().build()?;
+        let text_yes = TextPanelBuilder::default().text("Yes").build()?;
+        let text_no = TextPanelBuilder::default().text("No").build()?;
+        let text_ok = TextPanelBuilder::default().text("OK").build()?;
+        let text_cancel = TextPanelBuilder::default().text("Cancel").build()?;
         let handle_yes = button_yes.handle();
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
         let handle_cancel = button_cancel.handle();
-        text_yes.set_text("Yes")?;
-        text_no.set_text("No")?;
-        text_ok.set_text("OK")?;
-        text_cancel.set_text("Cancel")?;
-        button_yes.add_panel(text_yes)?;
-        button_no.add_panel(text_no)?;
-        button_ok.add_panel(text_ok)?;
-        button_cancel.add_panel(text_cancel)?;
-        let mut ribbon = RibbonPanel::new(&globals, RibbonOrientation::Vertical)?;
+        button_yes.set_panel(text_yes)?;
+        button_no.set_panel(text_no)?;
+        button_ok.set_panel(text_ok)?;
+        button_cancel.set_panel(text_cancel)?;
+        let mut ribbon = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Vertical)
+            .build()?;
         ribbon.push_panel(message_panel, 1.0)?;
-        let mut ribbon_buttons = RibbonPanel::new(&globals, RibbonOrientation::Horizontal)?;
+        let mut ribbon_buttons = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Horizontal)
+            .build()?;
         let mut control_manager = ControlManager::new();
         if button_flags.contains(MessageBoxButton::Yes) {
             ribbon_buttons.push_panel(button_yes, 1.0)?;
@@ -103,8 +102,6 @@ impl MessageBoxPanel {
         root_panel.push_panel(ribbon, 1.0)?;
 
         Ok(Self {
-            id: globals.get_next_id(),
-            visual,
             root_panel,
             control_manager,
             handle_yes,
@@ -112,6 +109,43 @@ impl MessageBoxPanel {
             handle_ok,
             handle_cancel,
         })
+    }
+}
+
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_default"), setter(skip))]
+pub struct MessageBoxPanel {
+    id: usize,
+    #[builder(setter(into), default = "MessageBoxButton::Ok.into()")]
+    button_flags: BitFlags<MessageBoxButton>,
+    #[builder(setter(into, strip_option), default = "Some(\"\".into())")]
+    message: Option<Cow<'static, str>>,
+    visual: ContainerVisual,
+    internals: Option<MessageBoxPanelInternals>,
+}
+
+impl MessageBoxPanelBuilder {
+    pub fn build(&self) -> winrt::Result<MessageBoxPanel> {
+        match self.build_default() {
+            Ok(mut panel) => {
+                panel.finish_build()?;
+                Ok(panel)
+            }
+            Err(e) => Err(winrt_error(e)),
+        }
+    }
+}
+
+impl MessageBoxPanel {
+    fn finish_build(&mut self) -> winrt::Result<()> {
+        let internals =
+            MessageBoxPanelInternals::new(self.button_flags, self.message.take().unwrap())?;
+        self.visual = globals().compositor().create_container_visual()?;
+        self.visual
+            .children()?
+            .insert_at_top(internals.root_panel.visual())?;
+        self.internals = Some(internals);
+        Ok(())
     }
     pub fn handle(&self) -> MessageBoxPanelHandle {
         MessageBoxPanelHandle(self.id)
@@ -134,13 +168,18 @@ impl Panel for MessageBoxPanel {
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn std::any::Any> {
         if id == self.id {
             Some(self.as_any_mut())
+        } else if let Some(ref mut internals) = self.internals {
+            internals.root_panel.find_panel(id)
         } else {
-            self.root_panel.find_panel(id)
+            None
         }
     }
 
     fn on_init(&mut self, proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
-        self.root_panel.on_init(proxy)
+        if let Some(ref mut internals) = self.internals {
+            internals.root_panel.on_init(proxy)?;
+        }
+        Ok(())
     }
 
     fn on_resize(
@@ -149,11 +188,17 @@ impl Panel for MessageBoxPanel {
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<()> {
         self.visual().set_size(size.clone())?;
-        self.root_panel.on_resize(size, proxy)
+        if let Some(ref mut internals) = self.internals {
+            internals.root_panel.on_resize(size, proxy)?;
+        }
+        Ok(())
     }
 
     fn on_idle(&mut self, proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
-        self.root_panel.on_idle(proxy)
+        if let Some(ref mut internals) = self.internals {
+            internals.root_panel.on_idle(proxy)?;
+        }
+        Ok(())
     }
 
     fn on_mouse_move(
@@ -161,7 +206,10 @@ impl Panel for MessageBoxPanel {
         position: &bindings::windows::foundation::numerics::Vector2,
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<()> {
-        self.root_panel.on_mouse_move(position, proxy)
+        if let Some(ref mut internals) = self.internals {
+            internals.root_panel.on_mouse_move(position, proxy)?;
+        }
+        Ok(())
     }
 
     fn on_mouse_input(
@@ -170,7 +218,11 @@ impl Panel for MessageBoxPanel {
         state: winit::event::ElementState,
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<bool> {
-        self.root_panel.on_mouse_input(button, state, proxy)
+        if let Some(ref mut internals) = self.internals {
+            internals.root_panel.on_mouse_input(button, state, proxy)
+        } else {
+            Ok(false)
+        }
     }
 
     fn on_keyboard_input(
@@ -178,10 +230,16 @@ impl Panel for MessageBoxPanel {
         input: winit::event::KeyboardInput,
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<bool> {
-        Ok(self.root_panel.on_keyboard_input(input, proxy)?
-            || self
-                .control_manager
-                .process_keyboard_input(input, &mut self.root_panel, proxy)?)
+        if let Some(ref mut internals) = self.internals {
+            Ok(internals.root_panel.on_keyboard_input(input, proxy)?
+                || internals.control_manager.process_keyboard_input(
+                    input,
+                    &mut internals.root_panel,
+                    proxy,
+                )?)
+        } else {
+            Ok(false)
+        }
     }
 
     fn on_panel_event(
@@ -189,21 +247,27 @@ impl Panel for MessageBoxPanel {
         panel_event: &mut crate::main_window::PanelEvent,
         proxy: &crate::main_window::PanelEventProxy,
     ) -> winrt::Result<()> {
-        self.root_panel.on_panel_event(panel_event, proxy)?;
-        if self.handle_yes.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::Yes)?;
-        }
-        if self.handle_no.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::No)?;
-        }
-        if self.handle_cancel.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
-        }
-        if self.handle_ok.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::Ok)?;
-        } else {
-            self.control_manager
-                .process_panel_event(panel_event, &mut self.root_panel, proxy)?;
+        if let Some(ref mut internals) = self.internals {
+            internals.root_panel.on_panel_event(panel_event, proxy)?;
+            if internals.handle_yes.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+                proxy.send_panel_event(self.id, MessageBoxButton::Yes)?;
+            }
+            if internals.handle_no.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+                proxy.send_panel_event(self.id, MessageBoxButton::No)?;
+            }
+            if internals.handle_cancel.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed)
+            {
+                proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
+            }
+            if internals.handle_ok.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
+                proxy.send_panel_event(self.id, MessageBoxButton::Ok)?;
+            } else {
+                internals.control_manager.process_panel_event(
+                    panel_event,
+                    &mut internals.root_panel,
+                    proxy,
+                )?;
+            }
         }
         Ok(())
     }

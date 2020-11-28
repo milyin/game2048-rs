@@ -1,9 +1,13 @@
+use lazy_static::lazy_static;
 use std::{
     any::Any,
     sync::{Arc, Mutex},
 };
 
-use crate::window_target::CompositionDesktopWindowTargetSource;
+use crate::{
+    interop::create_dispatcher_queue_controller_for_current_thread, interop::ro_initialize,
+    interop::RoInitType, window_target::CompositionDesktopWindowTargetSource,
+};
 use bindings::microsoft::graphics::canvas::ui::composition::CanvasComposition;
 use bindings::microsoft::graphics::canvas::CanvasDevice;
 use bindings::windows::foundation::numerics::Vector2;
@@ -56,6 +60,31 @@ pub struct PanelGlobals {
     canvas_device: CanvasDevice,
     composition_graphics_device: CompositionGraphicsDevice,
     next_id: Arc<Mutex<usize>>,
+}
+
+lazy_static! {
+    static ref PANEL_GLOBALS: PanelGlobals = {
+        // Not sure is it good place to do this required initialization
+        ro_initialize(RoInitType::MultiThreaded).unwrap();
+        let _controller = create_dispatcher_queue_controller_for_current_thread().unwrap();
+
+        let compositor = Compositor::new().unwrap();
+        let canvas_device = CanvasDevice::get_shared_device().unwrap();
+        let composition_graphics_device =
+            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)
+                .unwrap();
+
+        PanelGlobals {
+            compositor,
+            canvas_device,
+            composition_graphics_device,
+            next_id: Arc::new(Mutex::new(0)),
+        }
+    };
+}
+
+pub fn globals() -> &'static PanelGlobals {
+    &PANEL_GLOBALS
 }
 
 impl PanelGlobals {
@@ -133,9 +162,9 @@ pub struct EmptyPanel {
 }
 
 impl EmptyPanel {
-    pub fn new(globals: &PanelGlobals) -> winrt::Result<Self> {
-        let visual = globals.compositor().create_container_visual()?;
-        let id = globals.get_next_id();
+    pub fn new() -> winrt::Result<Self> {
+        let visual = globals().compositor().create_container_visual()?;
+        let id = globals().get_next_id();
         Ok(Self { id, visual })
     }
 }
@@ -206,7 +235,6 @@ impl Panel for EmptyPanel {
 }
 
 pub struct MainWindow {
-    globals: PanelGlobals,
     root: ContainerVisual,
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
@@ -220,7 +248,7 @@ impl MainWindow {
         let proxy = PanelEventProxy {
             proxy: event_loop.create_proxy(),
         };
-        let compositor = Compositor::new()?;
+        let compositor = globals().compositor();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         let target = window.create_window_target(&compositor, false)?;
         let root = compositor.create_container_visual()?;
@@ -234,19 +262,7 @@ impl MainWindow {
 
         window.set_min_inner_size(Some(PhysicalSize::new(100, 100)));
 
-        let canvas_device = CanvasDevice::get_shared_device()?;
-        let composition_graphics_device =
-            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
-
-        let globals = PanelGlobals {
-            compositor,
-            canvas_device,
-            composition_graphics_device,
-            next_id: Arc::new(Mutex::new(0)),
-        };
-
         Ok(Self {
-            globals,
             root,
             _target: target,
             event_loop: Some(event_loop),
@@ -268,10 +284,6 @@ impl MainWindow {
                 "unexpected error: proxy should be in Window struct until event loop run",
             ))
         }
-    }
-
-    pub fn get_globals(&self) -> &PanelGlobals {
-        &self.globals
     }
 
     pub fn run(mut self, mut panel: impl Panel + 'static) -> winrt::Result<()> {
