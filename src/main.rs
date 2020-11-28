@@ -17,6 +17,7 @@ use panelgui::{
     message_box_panel::MessageBoxPanelHandle,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
+    ribbon_panel::RibbonPanelBuilder,
     text_panel::{TextPanelBuilder, TextPanelHandle},
 };
 
@@ -39,7 +40,9 @@ impl MainPanel {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
 
-        let mut root_panel = RibbonPanel::new(RibbonOrientation::Stack)?;
+        let mut root_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Stack)
+            .build()?;
         let background_panel = BackgroundPanelBuilder::default()
             .color(Colors::white()?)
             .build()?;
@@ -49,8 +52,12 @@ impl MainPanel {
         let undo_button_text_panel = TextPanelBuilder::default().text("⮌").build()?;
         let mut reset_button_panel = ButtonPanelBuilder::default().build()?;
         let reset_button_text_panel = TextPanelBuilder::default().text("⭯").build()?;
-        let mut vribbon_panel = RibbonPanel::new(RibbonOrientation::Vertical)?;
-        let mut hribbon_panel = RibbonPanel::new(RibbonOrientation::Horizontal)?;
+        let mut vribbon_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Vertical)
+            .build()?;
+        let mut hribbon_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Horizontal)
+            .build()?;
 
         // Take handles
         let game_field_handle = game_field_panel.handle();

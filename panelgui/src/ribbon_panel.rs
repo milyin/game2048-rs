@@ -7,7 +7,7 @@ use bindings::windows::{
 
 use crate::main_window::{globals, winrt_error, Panel, PanelEventProxy};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum RibbonOrientation {
     Horizontal,
     Vertical,
@@ -21,24 +21,34 @@ struct RibbonCell {
     content_ratio: Vector2,
 }
 
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_default"), setter(skip))]
 pub struct RibbonPanel {
     id: usize,
+    #[builder(setter(into), default = "RibbonOrientation::Stack")]
     orientation: RibbonOrientation,
     cells: Vec<RibbonCell>,
     ribbon: ContainerVisual,
     mouse_position: Option<Vector2>,
 }
 
+impl RibbonPanelBuilder {
+    pub fn build(&self) -> winrt::Result<RibbonPanel> {
+        match self.build_default() {
+            Ok(mut panel) => {
+                panel.finish_build()?;
+                Ok(panel)
+            }
+            Err(e) => Err(winrt_error(e)),
+        }
+    }
+}
+
 impl RibbonPanel {
-    pub fn new(orientation: RibbonOrientation) -> winrt::Result<Self> {
-        let ribbon = globals().compositor().create_container_visual()?;
-        Ok(Self {
-            id: globals().get_next_id(),
-            orientation,
-            cells: Vec::new(),
-            ribbon,
-            mouse_position: None,
-        })
+    fn finish_build(&mut self) -> winrt::Result<()> {
+        self.id = globals().get_next_id();
+        self.ribbon = globals().compositor().create_container_visual()?;
+        Ok(())
     }
     pub fn push_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
         self.push_panel_sized(panel, ratio, Vector2 { x: 1., y: 1. })

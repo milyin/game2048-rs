@@ -12,6 +12,7 @@ use crate::{
     main_window::{Handle, Panel, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
+    ribbon_panel::RibbonPanelBuilder,
     text_panel::TextPanelBuilder,
 };
 
@@ -50,7 +51,9 @@ impl MessageBoxPanel {
         button_flags: BitFlags<MessageBoxButton>,
     ) -> winrt::Result<Self> {
         let visual = globals().compositor().create_container_visual()?;
-        let mut root_panel = RibbonPanel::new(RibbonOrientation::Stack)?;
+        let mut root_panel = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Stack)
+            .build()?;
         visual.children()?.insert_at_top(root_panel.visual())?;
         let mut background_panel = BackgroundPanelBuilder::default()
             .color(Colors::wheat()?)
@@ -76,9 +79,13 @@ impl MessageBoxPanel {
         button_no.set_panel(text_no)?;
         button_ok.set_panel(text_ok)?;
         button_cancel.set_panel(text_cancel)?;
-        let mut ribbon = RibbonPanel::new(RibbonOrientation::Vertical)?;
+        let mut ribbon = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Vertical)
+            .build()?;
         ribbon.push_panel(message_panel, 1.0)?;
-        let mut ribbon_buttons = RibbonPanel::new(RibbonOrientation::Horizontal)?;
+        let mut ribbon_buttons = RibbonPanelBuilder::default()
+            .orientation(RibbonOrientation::Horizontal)
+            .build()?;
         let mut control_manager = ControlManager::new();
         if button_flags.contains(MessageBoxButton::Yes) {
             ribbon_buttons.push_panel(button_yes, 1.0)?;
