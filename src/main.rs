@@ -1,6 +1,8 @@
 use std::any::Any;
 
-use bindings::windows::{foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors};
+use bindings::windows::{
+    foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors,
+};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{background_panel::BackgroundPanelBuilder, main_window::globals};
 use panelgui::{
@@ -15,7 +17,7 @@ use panelgui::{
     message_box_panel::MessageBoxPanelHandle,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
-    text_panel::{TextPanel, TextPanelHandle},
+    text_panel::{TextPanelBuilder, TextPanelHandle},
 };
 
 mod game_field_panel;
@@ -38,13 +40,15 @@ impl MainPanel {
         let visual = globals().compositor().create_container_visual()?;
 
         let mut root_panel = RibbonPanel::new(RibbonOrientation::Stack)?;
-        let background_panel = BackgroundPanelBuilder::default().color(Colors::white()?).build()?;
+        let background_panel = BackgroundPanelBuilder::default()
+            .color(Colors::white()?)
+            .build()?;
         let game_field_panel = GameFieldPanel::new()?;
-        let score_panel = TextPanel::new()?;
+        let score_panel = TextPanelBuilder::default().build()?;
         let mut undo_button_panel = ButtonPanelBuilder::default().build()?;
-        let mut undo_button_text_panel = TextPanel::new()?;
+        let undo_button_text_panel = TextPanelBuilder::default().text("⮌").build()?;
         let mut reset_button_panel = ButtonPanelBuilder::default().build()?;
-        let mut reset_button_text_panel = TextPanel::new()?;
+        let reset_button_text_panel = TextPanelBuilder::default().text("⭯").build()?;
         let mut vribbon_panel = RibbonPanel::new(RibbonOrientation::Vertical)?;
         let mut hribbon_panel = RibbonPanel::new(RibbonOrientation::Horizontal)?;
 
@@ -53,9 +57,6 @@ impl MainPanel {
         let score_handle = score_panel.handle();
         let undo_button_handle = undo_button_panel.handle();
         let reset_button_handle = reset_button_panel.handle();
-
-        undo_button_text_panel.set_text("⮌")?;
-        reset_button_text_panel.set_text("⭯")?;
 
         undo_button_panel.set_panel(undo_button_text_panel)?;
         reset_button_panel.set_panel(reset_button_text_panel)?;

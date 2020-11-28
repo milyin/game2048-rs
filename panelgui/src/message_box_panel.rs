@@ -12,7 +12,7 @@ use crate::{
     main_window::{Handle, Panel, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
-    text_panel::TextPanel,
+    text_panel::TextPanelBuilder,
 };
 
 pub struct MessageBoxPanelHandle(usize);
@@ -59,24 +59,19 @@ impl MessageBoxPanel {
         background_panel.set_round_corners(true)?;
         background_panel.set_color(Colors::wheat()?)?;
         root_panel.push_panel(background_panel, 1.0)?;
-        let mut message_panel = TextPanel::new()?;
-        message_panel.set_text(message)?;
+        let message_panel = TextPanelBuilder::default().text(message).build()?;
         let mut button_yes = ButtonPanelBuilder::default().build()?;
         let mut button_no = ButtonPanelBuilder::default().build()?;
         let mut button_ok = ButtonPanelBuilder::default().build()?;
         let mut button_cancel = ButtonPanelBuilder::default().build()?;
-        let mut text_yes = TextPanel::new()?;
-        let mut text_no = TextPanel::new()?;
-        let mut text_ok = TextPanel::new()?;
-        let mut text_cancel = TextPanel::new()?;
+        let text_yes = TextPanelBuilder::default().text("Yes").build()?;
+        let text_no = TextPanelBuilder::default().text("No").build()?;
+        let text_ok = TextPanelBuilder::default().text("OK").build()?;
+        let text_cancel = TextPanelBuilder::default().text("Cancel").build()?;
         let handle_yes = button_yes.handle();
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
         let handle_cancel = button_cancel.handle();
-        text_yes.set_text("Yes")?;
-        text_no.set_text("No")?;
-        text_ok.set_text("OK")?;
-        text_cancel.set_text("Cancel")?;
         button_yes.set_panel(text_yes)?;
         button_no.set_panel(text_no)?;
         button_ok.set_panel(text_ok)?;

@@ -33,7 +33,7 @@ pub struct ButtonPanel {
     visual: ContainerVisual,
     background: ShapeVisual,
     shapes: HashMap<ButtonMode, (Vector2, CompositionShape)>,
-    #[builder(setter(into), default="true")]
+    #[builder(setter(into), default = "true")]
     enabled: bool,
     focused: bool,
 }
@@ -63,9 +63,7 @@ impl ButtonPanelBuilder {
                 panel.finish_build()?;
                 Ok(panel)
             }
-            Err(e) => {
-                Err(winrt_error(e))
-            }
+            Err(e) => Err(winrt_error(e)),
         }
     }
 }
@@ -75,13 +73,22 @@ impl ButtonPanel {
         self.id = globals().get_next_id();
         self.visual = globals().compositor().create_container_visual()?;
         self.background = globals().compositor().create_shape_visual()?;
-        self.visual.children()?.insert_at_bottom(self.background.clone())?;
+        self.visual
+            .children()?
+            .insert_at_bottom(self.background.clone())?;
         Ok(())
     }
     pub fn handle(&self) -> ButtonPanelHandle {
         ButtonPanelHandle { id: self.id }
     }
+    pub fn remove_panel(&mut self) -> winrt::Result<()> {
+        if let Some(panel) = self.panel.take() {
+            self.visual.children()?.remove(panel.visual())?;
+        }
+        Ok(())
+    }
     pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+        self.remove_panel()?;
         self.visual
             .children()?
             .insert_at_top(panel.visual().clone())?;

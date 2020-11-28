@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use bindings::{
     microsoft::graphics::canvas::{
         text::CanvasHorizontalAlignment, text::CanvasTextFormat, text::CanvasTextLayout,
-        text::CanvasVerticalAlignment, ui::composition::CanvasComposition, CanvasDevice,
+        text::CanvasVerticalAlignment, ui::composition::CanvasComposition,
     },
     windows::{
         foundation::numerics::Vector2,
@@ -11,9 +11,8 @@ use bindings::{
         graphics::directx::DirectXAlphaMode,
         graphics::directx::DirectXPixelFormat,
         ui::composition::CompositionDrawingSurface,
-        ui::composition::CompositionGraphicsDevice,
         ui::{
-            composition::{Compositor, ContainerVisual, SpriteVisual},
+            composition::{ContainerVisual, SpriteVisual},
             Color, Colors,
         },
     },
@@ -21,7 +20,7 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{globals, Handle, Panel, PanelEventProxy, PanelHandle},
+    main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle},
 };
 
 #[derive(Copy, Clone)]
@@ -43,38 +42,36 @@ impl ControlHandle for TextPanelHandle {
     }
 }
 
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_default"), setter(skip))]
 pub struct TextPanel {
     id: usize,
+    #[builder(setter(into), default)]
     text: Cow<'static, str>,
+    #[builder(setter(into), default = "true")]
     enabled: bool,
+    #[builder(setter(into), default = "Colors::black().unwrap()")]
     text_color: Color,
-    compositor: Compositor,
-    canvas_device: CanvasDevice,
-    composition_graphics_device: CompositionGraphicsDevice,
     surface: Option<CompositionDrawingSurface>,
     visual: SpriteVisual,
 }
+impl TextPanelBuilder {
+    pub fn build(&self) -> winrt::Result<TextPanel> {
+        match self.build_default() {
+            Ok(mut panel) => {
+                panel.finish_build()?;
+                Ok(panel)
+            }
+            Err(e) => Err(winrt_error(e)),
+        }
+    }
+}
 
 impl TextPanel {
-    pub fn new() -> winrt::Result<Self> {
-        let compositor = globals().compositor().clone();
-        let canvas_device = globals().canvas_device().clone();
-        let composition_graphics_device = globals().composition_graphics_device().clone();
-        let visual = compositor.create_sprite_visual()?;
-        let surface = None;
-        let enabled = true;
-        let text_color = Colors::black()?;
-        Ok(Self {
-            id: globals().get_next_id(),
-            text: "".into(),
-            enabled,
-            text_color,
-            compositor,
-            canvas_device,
-            composition_graphics_device,
-            visual,
-            surface,
-        })
+    fn finish_build(&mut self) -> winrt::Result<()> {
+        self.id = globals().get_next_id();
+        self.visual = globals().compositor().create_sprite_visual()?;
+        Ok(())
     }
     pub fn handle(&self) -> TextPanelHandle {
         TextPanelHandle { id: self.id }
@@ -91,16 +88,18 @@ impl TextPanel {
     fn resize_surface(&mut self) -> winrt::Result<()> {
         let size = self.visual.size()?;
         if size.x > 0. && size.y > 0. {
-            let surface = self.composition_graphics_device.create_drawing_surface(
-                Size {
-                    width: size.x,
-                    height: size.y,
-                },
-                DirectXPixelFormat::B8G8R8A8UIntNormalized,
-                DirectXAlphaMode::Premultiplied,
-            )?;
+            let surface = globals()
+                .composition_graphics_device()
+                .create_drawing_surface(
+                    Size {
+                        width: size.x,
+                        height: size.y,
+                    },
+                    DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                    DirectXAlphaMode::Premultiplied,
+                )?;
 
-            let brush = self.compositor.create_surface_brush()?;
+            let brush = globals().compositor().create_surface_brush()?;
             brush.set_surface(surface.clone())?;
             self.surface = Some(surface);
             self.visual.set_brush(brush)?;
@@ -119,7 +118,7 @@ impl TextPanel {
             text_format.set_font_size(size.height / 2.)?;
             let text: String = self.text.clone().into();
             let text_layout = CanvasTextLayout::create(
-                &self.canvas_device,
+                globals().canvas_device(),
                 text,
                 text_format,
                 size.width,
