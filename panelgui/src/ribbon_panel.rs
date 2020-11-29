@@ -143,7 +143,7 @@ impl RibbonPanel {
         &'a mut self,
         position: &Vector2,
     ) -> winrt::Result<Option<(Vector2, &'a mut RibbonCell)>> {
-        // Scan in reverse order to give priority to topmost cell when in Stack mode
+        // Scan in reverse order and exit immediately on topmost cell when in Stack mode
         for p in &mut self.cells.iter_mut().rev() {
             let offset = p.container.offset()?;
             let size = p.container.size()?;
@@ -153,6 +153,9 @@ impl RibbonPanel {
             };
             if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
                 return Ok(Some((position, p)));
+            }
+            if self.orientation == RibbonOrientation::Stack {
+                return Ok(None);
             }
         }
         Ok(None)
@@ -224,8 +227,12 @@ impl Panel for RibbonPanel {
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
         for p in &mut self.cells.iter_mut().rev() {
-            if p.panel.on_keyboard_input(input, proxy)? {
-                return Ok(true);
+            if self.orientation == RibbonOrientation::Stack {
+                return p.panel.on_keyboard_input(input, proxy);
+            } else {
+                if p.panel.on_keyboard_input(input, proxy)? {
+                    return Ok(true);
+                }
             }
         }
         Ok(false)
