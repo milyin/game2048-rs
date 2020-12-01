@@ -129,6 +129,13 @@ impl MainPanel {
             Err(winrt_error("Message box was not open"))
         }
     }
+
+    fn do_undo(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.game_field_handle
+            .at(&mut self.root_panel)?
+            .undo(proxy)?;
+        Ok(())
+    }
 }
 
 impl Panel for MainPanel {
@@ -221,10 +228,12 @@ impl Panel for MainPanel {
                         .reset(proxy)?;
                 }
             }
-        } else if self.game_field_handle.extract_event(panel_event)
-            == Some(GameFieldPanelEvent::Changed)
-        {
-            self.update_buttons(proxy)?;
+        } else if let Some(cmd) = self.game_field_handle.extract_event(panel_event) {
+            match cmd {
+                GameFieldPanelEvent::Changed => self.update_buttons(proxy)?,
+                GameFieldPanelEvent::UndoRequested => self.do_undo(proxy)?,
+                GameFieldPanelEvent::ResetRequested => self.open_message_box_reset(proxy)?,
+            }
         } else {
             self.control_manager
                 .process_panel_event(panel_event, &mut self.root_panel, proxy)?;

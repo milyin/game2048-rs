@@ -27,6 +27,8 @@ const MIN_DRAG_MOUSE_MOVE: FloatOrd<f32> = FloatOrd(5.);
 #[derive(PartialEq)]
 pub enum GameFieldPanelEvent {
     Changed,
+    UndoRequested,
+    ResetRequested,
 }
 
 pub struct GameFieldPanel {
@@ -84,12 +86,19 @@ impl Panel for GameFieldPanel {
                 Some(VirtualKeyCode::Right) => Some(Side::Right),
                 Some(VirtualKeyCode::Up) => Some(Side::Up),
                 Some(VirtualKeyCode::Down) => Some(Side::Down),
+                Some(VirtualKeyCode::A) => Some(Side::Left),
+                Some(VirtualKeyCode::D) => Some(Side::Right),
+                Some(VirtualKeyCode::W) => Some(Side::Up),
+                Some(VirtualKeyCode::S) => Some(Side::Down),
                 _ => None,
             } {
                 self.swipe(side, proxy)?;
                 return Ok(true);
             } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
-                self.undo(proxy)?;
+                proxy.send_panel_event(self.id, GameFieldPanelEvent::UndoRequested)?;
+                return Ok(true);
+            } else if input.virtual_keycode == Some(VirtualKeyCode::R) {
+                proxy.send_panel_event(self.id, GameFieldPanelEvent::ResetRequested)?;
                 return Ok(true);
             }
         }
