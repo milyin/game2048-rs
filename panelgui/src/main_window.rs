@@ -138,7 +138,8 @@ pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
 }
 
 pub fn winrt_error<T: std::fmt::Display>(e: T) -> winrt::Error {
-    winrt::Error::new(winrt::ErrorCode(0), format!("{}", e).as_str())
+    const E_FAIL: winrt::ErrorCode = winrt::ErrorCode(0x80004005);
+    winrt::Error::new(E_FAIL, format!("{}", e).as_str())
 }
 
 pub struct PanelEventProxy {
