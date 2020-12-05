@@ -4,21 +4,21 @@ use bindings::windows::{
     foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors,
 };
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
-use panelgui::{background_panel::BackgroundPanelBuilder, main_window::globals};
+use panelgui::{background_panel::BackgroundBuilder, main_window::globals};
 use panelgui::{
-    button_panel::{ButtonPanelBuilder, ButtonPanelEvent, ButtonPanelHandle},
+    button_panel::{ButtonBuilder, ButtonPanelEvent, ButtonPanelHandle},
     control::{Control, ControlManager},
     main_window::winrt_error,
     main_window::Handle,
     main_window::PanelHandle,
     main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy},
+    message_box_panel::MessageBoxBuilder,
     message_box_panel::MessageBoxButton,
-    message_box_panel::MessageBoxPanelBuilder,
     message_box_panel::MessageBoxPanelHandle,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
-    ribbon_panel::RibbonPanelBuilder,
-    text_panel::{TextPanelBuilder, TextPanelHandle},
+    ribbon_panel::RibbonBuilder,
+    text_panel::{TextBuilder, TextPanelHandle},
 };
 
 mod game_field_panel;
@@ -40,22 +40,22 @@ impl MainPanel {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
 
-        let mut root_panel = RibbonPanelBuilder::default()
+        let mut root_panel = RibbonBuilder::default()
             .orientation(RibbonOrientation::Stack)
             .build()?;
-        let background_panel = BackgroundPanelBuilder::default()
+        let background_panel = BackgroundBuilder::default()
             .color(Colors::white()?)
             .build()?;
         let game_field_panel = GameFieldPanel::new()?;
-        let score_panel = TextPanelBuilder::default().build()?;
-        let mut undo_button_panel = ButtonPanelBuilder::default().build()?;
-        let undo_button_text_panel = TextPanelBuilder::default().text("⮌").build()?;
-        let mut reset_button_panel = ButtonPanelBuilder::default().build()?;
-        let reset_button_text_panel = TextPanelBuilder::default().text("⭯").build()?;
-        let mut vribbon_panel = RibbonPanelBuilder::default()
+        let score_panel = TextBuilder::default().build()?;
+        let mut undo_button_panel = ButtonBuilder::default().build()?;
+        let undo_button_text_panel = TextBuilder::default().text("⮌").build()?;
+        let mut reset_button_panel = ButtonBuilder::default().build()?;
+        let reset_button_text_panel = TextBuilder::default().text("⭯").build()?;
+        let mut vribbon_panel = RibbonBuilder::default()
             .orientation(RibbonOrientation::Vertical)
             .build()?;
-        let mut hribbon_panel = RibbonPanelBuilder::default()
+        let mut hribbon_panel = RibbonBuilder::default()
             .orientation(RibbonOrientation::Horizontal)
             .build()?;
 
@@ -109,7 +109,7 @@ impl MainPanel {
     }
 
     fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        let message_box = MessageBoxPanelBuilder::default()
+        let message_box = MessageBoxBuilder::default()
             .message("Start new game?")
             .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
             .build()?;

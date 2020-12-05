@@ -26,15 +26,28 @@ enum ButtonMode {
     Focused,
 }
 #[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(skip))]
+#[builder(build_fn(private, name = "build_default"), setter(into))]
+pub struct Button {
+    #[builder(default = "true")]
+    enabled: bool,
+}
+
+impl ButtonBuilder {
+    pub fn build(&self) -> winrt::Result<ButtonPanel> {
+        match self.build_default() {
+            Ok(settings) => Ok(ButtonPanel::new(settings)?),
+            Err(e) => Err(winrt_error(e)),
+        }
+    }
+}
+
 pub struct ButtonPanel {
     id: usize,
+    button: Button,
     panel: Option<Box<dyn Control>>,
     visual: ContainerVisual,
     background: ShapeVisual,
     shapes: HashMap<ButtonMode, (Vector2, CompositionShape)>,
-    #[builder(setter(into), default = "true")]
-    enabled: bool,
     focused: bool,
 }
 
@@ -56,27 +69,21 @@ impl ControlHandle for ButtonPanelHandle {
         self.at(root_panel).ok().map(|p| p as &mut dyn Control)
     }
 }
-impl ButtonPanelBuilder {
-    pub fn build(&self) -> winrt::Result<ButtonPanel> {
-        match self.build_default() {
-            Ok(mut panel) => {
-                panel.finish_build()?;
-                Ok(panel)
-            }
-            Err(e) => Err(winrt_error(e)),
-        }
-    }
-}
-
 impl ButtonPanel {
-    fn finish_build(&mut self) -> winrt::Result<()> {
-        self.id = globals().get_next_id();
-        self.visual = globals().compositor().create_container_visual()?;
-        self.background = globals().compositor().create_shape_visual()?;
-        self.visual
-            .children()?
-            .insert_at_bottom(self.background.clone())?;
-        Ok(())
+    pub fn new(button: Button) -> winrt::Result<Self> {
+        let id = globals().get_next_id();
+        let visual = globals().compositor().create_container_visual()?;
+        let background = globals().compositor().create_shape_visual()?;
+        visual.children()?.insert_at_bottom(background.clone())?;
+        Ok(Self {
+            id,
+            button,
+            panel: None,
+            visual,
+            background,
+            shapes: HashMap::new(),
+            focused: false,
+        })
     }
     pub fn handle(&self) -> ButtonPanelHandle {
         ButtonPanelHandle { id: self.id }
@@ -101,7 +108,7 @@ impl ButtonPanel {
             .ok_or(winrt_error("no panel in ButtonPanel"))
     }
     fn press(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        if self.enabled {
+        if self.button.enabled {
             proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
         }
         Ok(())
@@ -159,7 +166,7 @@ impl ButtonPanel {
         Ok(shape)
     }
     fn get_mode(&self) -> ButtonMode {
-        if self.enabled {
+        if self.button.enabled {
             if self.focused {
                 ButtonMode::Focused
             } else {
@@ -275,7 +282,7 @@ impl Panel for ButtonPanel {
 
 impl Control for ButtonPanel {
     fn on_enable(&mut self, enable: bool) -> winrt::Result<()> {
-        self.enabled = enable;
+        self.button.enabled = enable;
         self.panel()?.on_enable(enable)
     }
 
@@ -289,7 +296,7 @@ impl Control for ButtonPanel {
     }
 
     fn is_enabled(&self) -> winrt::Result<bool> {
-        Ok(self.enabled)
+        Ok(self.button.enabled)
     }
 
     fn is_focused(&self) -> winrt::Result<bool> {

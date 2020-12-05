@@ -43,45 +43,51 @@ impl ControlHandle for TextPanelHandle {
 }
 
 #[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(skip))]
-pub struct TextPanel {
-    id: usize,
-    #[builder(setter(into), default)]
+#[builder(build_fn(private, name = "build_default"), setter(into))]
+pub struct Text {
     text: Cow<'static, str>,
-    #[builder(setter(into), default = "true")]
+    #[builder(default = "true")]
     enabled: bool,
-    #[builder(setter(into), default = "Colors::black().unwrap()")]
-    text_color: Color,
-    surface: Option<CompositionDrawingSurface>,
-    visual: SpriteVisual,
+    #[builder(default = "Colors::black().unwrap()")]
+    color: Color,
 }
-impl TextPanelBuilder {
+
+impl TextBuilder {
     pub fn build(&self) -> winrt::Result<TextPanel> {
         match self.build_default() {
-            Ok(mut panel) => {
-                panel.finish_build()?;
-                Ok(panel)
-            }
+            Ok(settings) => Ok(TextPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)),
         }
     }
 }
 
+pub struct TextPanel {
+    id: usize,
+    text: Text,
+    surface: Option<CompositionDrawingSurface>,
+    visual: SpriteVisual,
+}
+
 impl TextPanel {
-    fn finish_build(&mut self) -> winrt::Result<()> {
-        self.id = globals().get_next_id();
-        self.visual = globals().compositor().create_sprite_visual()?;
-        Ok(())
+    pub fn new(text: Text) -> winrt::Result<Self> {
+        let id = globals().get_next_id();
+        let visual = globals().compositor().create_sprite_visual()?;
+        Ok(Self {
+            id,
+            text,
+            surface: None,
+            visual,
+        })
     }
     pub fn handle(&self) -> TextPanelHandle {
         TextPanelHandle { id: self.id }
     }
     pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> winrt::Result<()> {
-        self.text = text.into();
+        self.text.text = text.into();
         self.redraw_text()
     }
     pub fn set_text_color(&mut self, color: Color) -> winrt::Result<()> {
-        self.text_color = color;
+        self.text.color = color;
         self.redraw_text()
     }
 
@@ -116,7 +122,7 @@ impl TextPanel {
             let text_format = CanvasTextFormat::new()?;
             text_format.set_font_family("Arial")?;
             text_format.set_font_size(size.height / 2.)?;
-            let text: String = self.text.clone().into();
+            let text: String = self.text.text.clone().into();
             let text_layout = CanvasTextLayout::create(
                 globals().canvas_device(),
                 text,
@@ -126,8 +132,8 @@ impl TextPanel {
             )?;
             text_layout.set_vertical_alignment(CanvasVerticalAlignment::Center)?;
             text_layout.set_horizontal_alignment(CanvasHorizontalAlignment::Center)?;
-            let color = if self.enabled {
-                self.text_color.clone()
+            let color = if self.text.enabled {
+                self.text.color.clone()
             } else {
                 Colors::gray()?
             };
@@ -209,7 +215,7 @@ impl Panel for TextPanel {
 
 impl Control for TextPanel {
     fn on_enable(&mut self, enable: bool) -> winrt::Result<()> {
-        self.enabled = enable;
+        self.text.enabled = enable;
         self.redraw_text()
     }
 
