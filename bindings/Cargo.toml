@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-winrt = "0.7.1"
+winrt ={ git = "https://github.com/microsoft/winrt-rs" } 
 
 [build-dependencies]
-winrt = "0.7.1"
+winrt =  { git = "https://github.com/microsoft/winrt-rs" }
 
 [package.metadata.winrt.dependencies]
+"Microsoft.Windows.SDK.Contracts" = "10.0.19041.1"
 "Win2D.uwp" = "1.25.0"
 "Microsoft.VCRTForwarders.140" = "1.0.6"

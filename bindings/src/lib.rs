@@ -1,4 +1,4 @@
-include!(concat!(env!("OUT_DIR"), "/winrt.rs"));
+winrt::include_bindings!();
 
 // TODO: Remove these declarations once their files become obselete.
-pub mod numerics;
+//pub mod numerics;
