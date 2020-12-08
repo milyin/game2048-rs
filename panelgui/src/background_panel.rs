@@ -4,7 +4,7 @@ use bindings::windows::{
     foundation::numerics::Vector2,
     ui::{
         composition::{CompositionShape, ContainerVisual, ShapeVisual},
-        Color,
+        Color, Colors,
     },
 };
 use float_ord::FloatOrd;
@@ -13,29 +13,35 @@ use winit::event::{ElementState, KeyboardInput, MouseButton};
 use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(skip))]
-pub struct BackgroundPanel {
-    id: usize,
-    visual: ContainerVisual,
-    background: ShapeVisual,
-    #[builder(setter(into), default)]
+#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+pub struct BackgroundParams {
     color: Color,
-    #[builder(setter(into), default)]
     round_corners: bool,
 }
 
-impl BackgroundPanelBuilder {
-    pub fn build(&self) -> winrt::Result<BackgroundPanel> {
-        match self.build_default() {
-            Ok(mut panel) => {
-                panel.finish_build()?;
-                Ok(panel)
-            }
-            Err(e) => {
-                Err(winrt_error(e))
-            }
+impl Default for BackgroundParams {
+    fn default() -> Self {
+        Self {
+            color: Colors::transparent().unwrap(),
+            round_corners: false,
         }
     }
+}
+
+impl BackgroundParamsBuilder {
+    pub fn build(&self) -> winrt::Result<BackgroundPanel> {
+        match self.build_default() {
+            Ok(settings) => Ok(BackgroundPanel::new(settings)?),
+            Err(e) => Err(winrt_error(e)),
+        }
+    }
+}
+
+pub struct BackgroundPanel {
+    id: usize,
+    params: BackgroundParams,
+    visual: ContainerVisual,
+    background_shape: ShapeVisual,
 }
 
 pub struct BackgroundPanelHandle {
@@ -51,30 +57,35 @@ impl Handle for BackgroundPanelHandle {
 impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
-    fn finish_build(&mut self) -> winrt::Result<()> {
-        self.id = globals().get_next_id();
-        self.visual = globals().compositor().create_container_visual()?;
-        self.background = globals().compositor().create_shape_visual()?;
-        self.visual
+    pub fn new(params: BackgroundParams) -> winrt::Result<Self> {
+        let id = globals().get_next_id();
+        let visual = globals().compositor().create_container_visual()?;
+        let background_shape = globals().compositor().create_shape_visual()?;
+        visual
             .children()?
-            .insert_at_bottom(self.background.clone())?;
-        Ok(())
+            .insert_at_bottom(background_shape.clone())?;
+        Ok(Self {
+            id,
+            params,
+            visual,
+            background_shape,
+        })
     }
     pub fn handle(&self) -> BackgroundPanelHandle {
         BackgroundPanelHandle { id: self.id }
     }
     pub fn set_color(&mut self, color: Color) -> winrt::Result<()> {
-        self.color = color;
+        self.params.color = color;
         self.redraw_background()
     }
     pub fn set_round_corners(&mut self, round_corners: bool) -> winrt::Result<()> {
-        self.round_corners = round_corners;
+        self.params.round_corners = round_corners;
         self.redraw_background()
     }
     fn redraw_background(&mut self) -> winrt::Result<()> {
-        self.background.set_size(self.visual.size()?)?;
-        self.background.shapes()?.clear()?;
-        self.background
+        self.background_shape.set_size(self.visual.size()?)?;
+        self.background_shape.shapes()?.clear()?;
+        self.background_shape
             .shapes()?
             .append(self.create_background_shape()?)?;
         Ok(())
@@ -82,8 +93,8 @@ impl BackgroundPanel {
     fn create_background_shape(&self) -> winrt::Result<CompositionShape> {
         let container_shape = globals().compositor().create_container_shape()?;
         let rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
-        rect_geometry.set_size(self.background.size()?)?;
-        if self.round_corners {
+        rect_geometry.set_size(self.background_shape.size()?)?;
+        if self.params.round_corners {
             let size = rect_geometry.size()?;
             let radius = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
             rect_geometry.set_corner_radius(Vector2 {
@@ -95,7 +106,7 @@ impl BackgroundPanel {
         }
         let brush = globals()
             .compositor()
-            .create_color_brush_with_color(self.color.clone())?;
+            .create_color_brush_with_color(self.params.color.clone())?;
         let rect = globals()
             .compositor()
             .create_sprite_shape_with_geometry(rect_geometry)?;
