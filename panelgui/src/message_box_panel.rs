@@ -6,16 +6,16 @@ use bindings::windows::ui::{composition::ContainerVisual, Colors};
 use winit::event::VirtualKeyCode;
 
 use crate::{
-    background_panel::BackgroundBuilder,
-    button_panel::{ButtonBuilder, ButtonPanelEvent, ButtonPanelHandle},
+    background_panel::BackgroundParamsBuilder,
+    button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
     control::ControlManager,
     main_window::globals,
     main_window::winrt_error,
     main_window::{Handle, Panel, PanelHandle},
-    ribbon_panel::RibbonBuilder,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
-    text_panel::TextBuilder,
+    ribbon_panel::RibbonParamsBuilder,
+    text_panel::TextParamsBuilder,
 };
 
 pub struct MessageBoxPanelHandle(usize);
@@ -38,14 +38,14 @@ impl PanelHandle<MessageBoxPanel, MessageBoxButton> for MessageBoxPanelHandle {}
 
 #[derive(Builder)]
 #[builder(build_fn(private, name = "build_default"), setter(into))]
-pub struct MessageBox {
+pub struct MessageBoxParams {
     #[builder(default = "MessageBoxButton::Ok.into()")]
     button_flags: BitFlags<MessageBoxButton>,
     #[builder(default = "\"\".into()")]
     message: Cow<'static, str>,
 }
 
-impl MessageBoxBuilder {
+impl MessageBoxParamsBuilder {
     pub fn build(&self) -> winrt::Result<MessageBoxPanel> {
         match self.build_default() {
             Ok(settings) => Ok(MessageBoxPanel::new(settings)?),
@@ -66,25 +66,25 @@ pub struct MessageBoxPanel {
 }
 
 impl MessageBoxPanel {
-    pub fn new(message_box: MessageBox) -> winrt::Result<Self> {
+    pub fn new(params: MessageBoxParams) -> winrt::Result<Self> {
         let id = globals().get_next_id();
-        let mut root_panel = RibbonBuilder::default()
+        let mut root_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Stack)
             .build()?;
-        let background_panel = BackgroundBuilder::default()
+        let background_panel = BackgroundParamsBuilder::default()
             .color(Colors::wheat()?)
             .round_corners(true)
             .build()?;
         root_panel.push_panel(background_panel, 1.0)?;
-        let message_panel = TextBuilder::default().text(message_box.message).build()?;
-        let mut button_yes = ButtonBuilder::default().build()?;
-        let mut button_no = ButtonBuilder::default().build()?;
-        let mut button_ok = ButtonBuilder::default().build()?;
-        let mut button_cancel = ButtonBuilder::default().build()?;
-        let text_yes = TextBuilder::default().text("Yes").build()?;
-        let text_no = TextBuilder::default().text("No").build()?;
-        let text_ok = TextBuilder::default().text("OK").build()?;
-        let text_cancel = TextBuilder::default().text("Cancel").build()?;
+        let message_panel = TextParamsBuilder::default().text(params.message).build()?;
+        let mut button_yes = ButtonParamsBuilder::default().build()?;
+        let mut button_no = ButtonParamsBuilder::default().build()?;
+        let mut button_ok = ButtonParamsBuilder::default().build()?;
+        let mut button_cancel = ButtonParamsBuilder::default().build()?;
+        let text_yes = TextParamsBuilder::default().text("Yes").build()?;
+        let text_no = TextParamsBuilder::default().text("No").build()?;
+        let text_ok = TextParamsBuilder::default().text("OK").build()?;
+        let text_cancel = TextParamsBuilder::default().text("Cancel").build()?;
         let handle_yes = button_yes.handle();
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
@@ -93,27 +93,27 @@ impl MessageBoxPanel {
         button_no.set_panel(text_no)?;
         button_ok.set_panel(text_ok)?;
         button_cancel.set_panel(text_cancel)?;
-        let mut ribbon = RibbonBuilder::default()
+        let mut ribbon = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Vertical)
             .build()?;
         ribbon.push_panel(message_panel, 1.0)?;
-        let mut ribbon_buttons = RibbonBuilder::default()
+        let mut ribbon_buttons = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Horizontal)
             .build()?;
         let mut control_manager = ControlManager::new();
-        if message_box.button_flags.contains(MessageBoxButton::Yes) {
+        if params.button_flags.contains(MessageBoxButton::Yes) {
             ribbon_buttons.push_panel(button_yes, 1.0)?;
             control_manager.add_control(handle_yes.clone());
         }
-        if message_box.button_flags.contains(MessageBoxButton::No) {
+        if params.button_flags.contains(MessageBoxButton::No) {
             ribbon_buttons.push_panel(button_no, 1.0)?;
             control_manager.add_control(handle_no.clone());
         }
-        if message_box.button_flags.contains(MessageBoxButton::Ok) {
+        if params.button_flags.contains(MessageBoxButton::Ok) {
             ribbon_buttons.push_panel(button_ok, 1.0)?;
             control_manager.add_control(handle_ok.clone());
         }
-        if message_box.button_flags.contains(MessageBoxButton::Cancel) {
+        if params.button_flags.contains(MessageBoxButton::Cancel) {
             ribbon_buttons.push_panel(button_cancel, 1.0)?;
             control_manager.add_control(handle_cancel.clone());
         }

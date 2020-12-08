@@ -23,12 +23,12 @@ struct RibbonCell {
 
 #[derive(Builder)]
 #[builder(build_fn(private, name = "build_default"), setter(into))]
-pub struct Ribbon {
+pub struct RibbonParams {
     #[builder(default = "RibbonOrientation::Stack")]
     orientation: RibbonOrientation,
 }
 
-impl RibbonBuilder {
+impl RibbonParamsBuilder {
     pub fn build(&self) -> winrt::Result<RibbonPanel> {
         match self.build_default() {
             Ok(settings) => Ok(RibbonPanel::new(settings)?),
@@ -39,19 +39,19 @@ impl RibbonBuilder {
 
 pub struct RibbonPanel {
     id: usize,
-    ribbon: Ribbon,
+    params: RibbonParams,
     cells: Vec<RibbonCell>,
     visual: ContainerVisual,
     mouse_position: Option<Vector2>,
 }
 
 impl RibbonPanel {
-    pub fn new(ribbon: Ribbon) -> winrt::Result<Self> {
+    pub fn new(params: RibbonParams) -> winrt::Result<Self> {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
         Ok(Self {
             id,
-            ribbon,
+            params,
             cells: Vec::new(),
             visual,
             mouse_position: None,
@@ -96,7 +96,7 @@ impl RibbonPanel {
         let total = self.cells.iter().map(|c| c.ratio).sum::<f32>();
         let mut pos: f32 = 0.;
         for cell in &self.cells {
-            if self.ribbon.orientation == RibbonOrientation::Stack {
+            if self.params.orientation == RibbonOrientation::Stack {
                 let content_size = size.clone() * cell.content_ratio.clone();
                 let content_offset = Vector3 {
                     x: (size.x - content_size.x) / 2.,
@@ -106,7 +106,7 @@ impl RibbonPanel {
                 cell.container.set_size(&content_size)?;
                 cell.container.set_offset(&content_offset)?;
             } else {
-                let hor = self.ribbon.orientation == RibbonOrientation::Horizontal;
+                let hor = self.params.orientation == RibbonOrientation::Horizontal;
                 let share = if hor { size.x } else { size.y } * cell.ratio / total;
                 let size = if hor {
                     Vector2 {
@@ -161,7 +161,7 @@ impl RibbonPanel {
             if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
                 return Ok(Some((position, p)));
             }
-            if self.ribbon.orientation == RibbonOrientation::Stack {
+            if self.params.orientation == RibbonOrientation::Stack {
                 return Ok(None);
             }
         }
@@ -234,7 +234,7 @@ impl Panel for RibbonPanel {
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
         for p in &mut self.cells.iter_mut().rev() {
-            if self.ribbon.orientation == RibbonOrientation::Stack {
+            if self.params.orientation == RibbonOrientation::Stack {
                 return p.panel.on_keyboard_input(input, proxy);
             } else {
                 if p.panel.on_keyboard_input(input, proxy)? {

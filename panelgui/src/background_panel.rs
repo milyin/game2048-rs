@@ -4,7 +4,7 @@ use bindings::windows::{
     foundation::numerics::Vector2,
     ui::{
         composition::{CompositionShape, ContainerVisual, ShapeVisual},
-        Color,
+        Color, Colors,
     },
 };
 use float_ord::FloatOrd;
@@ -13,13 +13,22 @@ use winit::event::{ElementState, KeyboardInput, MouseButton};
 use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(into))]
-pub struct Background {
+#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+pub struct BackgroundParams {
     color: Color,
     round_corners: bool,
 }
 
-impl BackgroundBuilder {
+impl Default for BackgroundParams {
+    fn default() -> Self {
+        Self {
+            color: Colors::transparent().unwrap(),
+            round_corners: false,
+        }
+    }
+}
+
+impl BackgroundParamsBuilder {
     pub fn build(&self) -> winrt::Result<BackgroundPanel> {
         match self.build_default() {
             Ok(settings) => Ok(BackgroundPanel::new(settings)?),
@@ -30,7 +39,7 @@ impl BackgroundBuilder {
 
 pub struct BackgroundPanel {
     id: usize,
-    background: Background,
+    params: BackgroundParams,
     visual: ContainerVisual,
     background_shape: ShapeVisual,
 }
@@ -48,7 +57,7 @@ impl Handle for BackgroundPanelHandle {
 impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
-    pub fn new(background: Background) -> winrt::Result<Self> {
+    pub fn new(params: BackgroundParams) -> winrt::Result<Self> {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
         let background_shape = globals().compositor().create_shape_visual()?;
@@ -57,7 +66,7 @@ impl BackgroundPanel {
             .insert_at_bottom(background_shape.clone())?;
         Ok(Self {
             id,
-            background,
+            params,
             visual,
             background_shape,
         })
@@ -66,11 +75,11 @@ impl BackgroundPanel {
         BackgroundPanelHandle { id: self.id }
     }
     pub fn set_color(&mut self, color: Color) -> winrt::Result<()> {
-        self.background.color = color;
+        self.params.color = color;
         self.redraw_background()
     }
     pub fn set_round_corners(&mut self, round_corners: bool) -> winrt::Result<()> {
-        self.background.round_corners = round_corners;
+        self.params.round_corners = round_corners;
         self.redraw_background()
     }
     fn redraw_background(&mut self) -> winrt::Result<()> {
@@ -85,7 +94,7 @@ impl BackgroundPanel {
         let container_shape = globals().compositor().create_container_shape()?;
         let rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background_shape.size()?)?;
-        if self.background.round_corners {
+        if self.params.round_corners {
             let size = rect_geometry.size()?;
             let radius = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
             rect_geometry.set_corner_radius(Vector2 {
@@ -97,7 +106,7 @@ impl BackgroundPanel {
         }
         let brush = globals()
             .compositor()
-            .create_color_brush_with_color(self.background.color.clone())?;
+            .create_color_brush_with_color(self.params.color.clone())?;
         let rect = globals()
             .compositor()
             .create_sprite_shape_with_geometry(rect_geometry)?;

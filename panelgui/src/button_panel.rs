@@ -25,14 +25,14 @@ enum ButtonMode {
     Disabled,
     Focused,
 }
-#[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(into))]
-pub struct Button {
+#[derive(Default, Builder)]
+#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+pub struct ButtonParams {
     #[builder(default = "true")]
     enabled: bool,
 }
 
-impl ButtonBuilder {
+impl ButtonParamsBuilder {
     pub fn build(&self) -> winrt::Result<ButtonPanel> {
         match self.build_default() {
             Ok(settings) => Ok(ButtonPanel::new(settings)?),
@@ -43,7 +43,7 @@ impl ButtonBuilder {
 
 pub struct ButtonPanel {
     id: usize,
-    button: Button,
+    params: ButtonParams,
     panel: Option<Box<dyn Control>>,
     visual: ContainerVisual,
     background: ShapeVisual,
@@ -70,14 +70,14 @@ impl ControlHandle for ButtonPanelHandle {
     }
 }
 impl ButtonPanel {
-    pub fn new(button: Button) -> winrt::Result<Self> {
+    pub fn new(params: ButtonParams) -> winrt::Result<Self> {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
         let background = globals().compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
         Ok(Self {
             id,
-            button,
+            params,
             panel: None,
             visual,
             background,
@@ -108,7 +108,7 @@ impl ButtonPanel {
             .ok_or(winrt_error("no panel in ButtonPanel"))
     }
     fn press(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        if self.button.enabled {
+        if self.params.enabled {
             proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
         }
         Ok(())
@@ -166,7 +166,7 @@ impl ButtonPanel {
         Ok(shape)
     }
     fn get_mode(&self) -> ButtonMode {
-        if self.button.enabled {
+        if self.params.enabled {
             if self.focused {
                 ButtonMode::Focused
             } else {
@@ -282,7 +282,7 @@ impl Panel for ButtonPanel {
 
 impl Control for ButtonPanel {
     fn on_enable(&mut self, enable: bool) -> winrt::Result<()> {
-        self.button.enabled = enable;
+        self.params.enabled = enable;
         self.panel()?.on_enable(enable)
     }
 
@@ -296,7 +296,7 @@ impl Control for ButtonPanel {
     }
 
     fn is_enabled(&self) -> winrt::Result<bool> {
-        Ok(self.button.enabled)
+        Ok(self.params.enabled)
     }
 
     fn is_focused(&self) -> winrt::Result<bool> {
