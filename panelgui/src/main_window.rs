@@ -116,7 +116,7 @@ pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
                 return Ok(p);
             }
         }
-        Err(winrt_error("Can't find panel"))
+        Err(winrt_error("Can't find panel")())
     }
     fn extract_event(&self, panel_event: &mut PanelEvent) -> Option<PanelEventType> {
         if panel_event.panel_id == self.id() {
@@ -137,9 +137,11 @@ pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
     }
 }
 
-pub fn winrt_error<T: std::fmt::Display>(e: T) -> winrt::Error {
-    const E_FAIL: winrt::ErrorCode = winrt::ErrorCode(0x80004005);
-    winrt::Error::new(E_FAIL, format!("{}", e).as_str())
+pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> winrt::Error {
+    move || {
+        const E_FAIL: winrt::ErrorCode = winrt::ErrorCode(0x80004005);
+        winrt::Error::new(E_FAIL, format!("{}", e).as_str())
+    }
 }
 
 pub struct PanelEventProxy {
@@ -153,7 +155,7 @@ impl PanelEventProxy {
                 panel_id,
                 data: Some(Box::new(command)),
             })
-            .map_err(winrt_error)
+            .map_err(|e| winrt_error(e)())
     }
 }
 
@@ -283,7 +285,7 @@ impl MainWindow {
         } else {
             Err(winrt_error(
                 "unexpected error: proxy should be in Window struct until event loop run",
-            ))
+            )())
         }
     }
 
@@ -296,7 +298,7 @@ impl MainWindow {
         panel.on_init(&proxy)?;
         event_loop.run(move |mut evt, _, control_flow| {
             // just to allow '?' usage
-            || -> winrt::Result<()> {
+            let mut run = || -> winrt::Result<()> {
                 *control_flow = ControlFlow::Wait;
                 match &mut evt {
                     Event::WindowEvent { event, window_id } => match event {
@@ -337,10 +339,12 @@ impl MainWindow {
                     }
                     _ => {}
                 }
-
                 Ok(())
-            }()
-            .unwrap()
+            };
+            if let Err(e) = run() {
+                dbg!(&e);
+                *control_flow = ControlFlow::Exit;
+            }
         });
     }
 }

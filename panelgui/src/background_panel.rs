@@ -32,7 +32,7 @@ impl BackgroundParamsBuilder {
     pub fn build(&self) -> winrt::Result<BackgroundPanel> {
         match self.build_default() {
             Ok(settings) => Ok(BackgroundPanel::new(settings)?),
-            Err(e) => Err(winrt_error(e)),
+            Err(e) => Err(winrt_error(e)()),
         }
     }
 }

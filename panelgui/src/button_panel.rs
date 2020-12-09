@@ -36,7 +36,7 @@ impl ButtonParamsBuilder {
     pub fn build(&self) -> winrt::Result<ButtonPanel> {
         match self.build_default() {
             Ok(settings) => Ok(ButtonPanel::new(settings)?),
-            Err(e) => Err(winrt_error(e)),
+            Err(e) => Err(winrt_error(e)()),
         }
     }
 }
@@ -105,7 +105,7 @@ impl ButtonPanel {
     pub fn panel(&mut self) -> winrt::Result<&mut (dyn Control + 'static)> {
         self.panel
             .as_deref_mut()
-            .ok_or(winrt_error("no panel in ButtonPanel"))
+            .ok_or_else(winrt_error("no panel in ButtonPanel"))
     }
     fn press(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if self.params.enabled {

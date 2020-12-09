@@ -32,7 +32,7 @@ impl RibbonParamsBuilder {
     pub fn build(&self) -> winrt::Result<RibbonPanel> {
         match self.build_default() {
             Ok(settings) => Ok(RibbonPanel::new(settings)?),
-            Err(e) => Err(winrt_error(e)),
+            Err(e) => Err(winrt_error(e)()),
         }
     }
 }
@@ -87,7 +87,7 @@ impl RibbonPanel {
             self.resize_cells()?;
             Ok(cell.panel)
         } else {
-            Err(winrt_error("Ribbon is empty"))
+            Err(winrt_error("Ribbon is empty")())
         }
     }
 

@@ -49,7 +49,7 @@ impl MessageBoxParamsBuilder {
     pub fn build(&self) -> winrt::Result<MessageBoxPanel> {
         match self.build_default() {
             Ok(settings) => Ok(MessageBoxPanel::new(settings)?),
-            Err(e) => Err(winrt_error(e)),
+            Err(e) => Err(winrt_error(e)()),
         }
     }
 }

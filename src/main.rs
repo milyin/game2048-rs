@@ -126,7 +126,7 @@ impl MainPanel {
             assert!(panel.id() == handle.id());
             Ok(())
         } else {
-            Err(winrt_error("Message box was not open"))
+            Err(winrt_error("Message box was not open")())
         }
     }
 
