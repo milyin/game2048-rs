@@ -153,7 +153,8 @@ impl Panel for MainPanel {
 
     fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         self.on_resize(&self.visual().parent()?.size()?, proxy)?;
-        self.update_buttons(proxy)
+        self.update_buttons(proxy)?;
+        self.root_panel.on_init(proxy)
     }
 
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {

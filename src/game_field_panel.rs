@@ -169,7 +169,7 @@ impl Panel for GameFieldPanel {
     }
 
     fn on_init(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
-        Ok(())
+        self.animate_field()
     }
 
     fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
@@ -213,7 +213,7 @@ impl GameFieldPanel {
 
         let (field, score) = Self::reset_field_and_score();
 
-        let mut game_field = Self {
+        Ok(Self {
             id: globals().get_next_id(),
             compositor,
             canvas_device: globals().canvas_device().clone(),
@@ -228,9 +228,7 @@ impl GameFieldPanel {
             score,
             mouse_pos: None,
             mouse_pressed_pos: None,
-        };
-        game_field.animate_field()?; // TODO: separate 'new' and 'OnInit'
-        Ok(game_field)
+        })
     }
 
     pub fn handle(&self) -> GameFieldHandle {
