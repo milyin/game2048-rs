@@ -14,6 +14,7 @@ use crate::{
     main_window::{Handle, Panel, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
+    ribbon_panel::RibbonCellParamsBuilder,
     ribbon_panel::RibbonParamsBuilder,
     text_panel::TextParamsBuilder,
 };
@@ -75,7 +76,9 @@ impl MessageBoxPanel {
             .color(Colors::wheat()?)
             .round_corners(true)
             .build()?;
-        root_panel.push_panel(background_panel, 1.0)?;
+        let background_cell = RibbonCellParamsBuilder::default().build()?;
+        background_cell.set_panel(background_panel)?;
+        root_panel.push_cell(background_cell)?;
         let message_panel = TextParamsBuilder::default().text(params.message).build()?;
         let mut button_yes = ButtonParamsBuilder::default().build()?;
         let mut button_no = ButtonParamsBuilder::default().build()?;

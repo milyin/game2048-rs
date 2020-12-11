@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{globals, winrt_error, Panel, PanelEventProxy};
+use crate::main_window::{EmptyPanel, Panel, PanelEventProxy, globals, winrt_error};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RibbonOrientation {
@@ -14,11 +14,49 @@ pub enum RibbonOrientation {
     Stack,
 }
 
-struct RibbonCell {
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_default"), setter(into))]
+pub struct RibbonCellParams {
+    #[builder(default = "1.0")]
+    ratio: f32,
+    #[builder(default = "Vector2 { x: 1.0, y: 1.0 }")]
+    content_ratio: Vector2,
+}
+
+impl RibbonCellParamsBuilder {
+    pub fn build(&self) -> winrt::Result<RibbonCell> {
+        match self.build_default() {
+            Ok(settings) => Ok(RibbonCell::new(settings)?),
+            Err(e) => Err(winrt_error(e)()),
+        }
+    }
+}
+
+pub struct RibbonCell {
+    params: RibbonCellParams,
     panel: Box<dyn Panel>,
     container: ContainerVisual,
-    ratio: f32,
-    content_ratio: Vector2,
+}
+
+impl RibbonCell {
+    pub fn new(params: RibbonCellParams) -> winrt::Result<RibbonCell> {
+        let container = globals().compositor().create_container_visual()?;
+        let panel = Box::new(EmptyPanel::new()?);
+        container
+            .children()?
+            .insert_at_top(panel.visual().clone())?;
+        Ok(Self {
+            params,
+            panel,
+            container
+        })
+    }
+
+    pub fn set_panel<P: Panel + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+        self.panel = Box::new(panel);
+        Ok(())
+    }
+ 
 }
 
 #[derive(Builder)]
@@ -57,6 +95,23 @@ impl RibbonPanel {
             mouse_position: None,
         })
     }
+    pub fn push_cell(&mut self, cell: RibbonCell) -> winrt::Result<()> {
+        self.visual.children()?.insert_at_top(cell.container.clone())?;
+        self.cells.push(cell);
+        self.resize_cells()?;
+        Ok(())
+
+    }
+    pub fn pop_cell(&mut self) -> winrt::Result<RibbonCell> {
+        if let Some(cell) = self.cells.pop() {
+            self.visual.children()?.remove(cell.container)?;
+            self.resize_cells()?;
+            Ok(cell)
+        } else {
+            Err(winrt_error("Ribbon is empty")())
+        }
+     }
+    /*
     pub fn push_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
         self.push_panel_sized(panel, ratio, Vector2 { x: 1., y: 1. })
     }
@@ -90,7 +145,7 @@ impl RibbonPanel {
             Err(winrt_error("Ribbon is empty")())
         }
     }
-
+    */
     fn resize_cells(&mut self) -> winrt::Result<()> {
         let size = self.visual.size()?;
         let total = self.cells.iter().map(|c| c.ratio).sum::<f32>();
