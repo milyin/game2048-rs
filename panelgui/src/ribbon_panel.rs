@@ -13,34 +13,81 @@ pub enum RibbonOrientation {
     Vertical,
     Stack,
 }
-
-struct RibbonCell {
+pub struct RibbonCell {
     panel: Box<dyn Panel>,
     container: ContainerVisual,
     ratio: f32,
     content_ratio: Vector2,
 }
 
+impl RibbonCell {
+    pub fn new(params: RibbonCellParams) -> winrt::Result<Self> {
+        let container = globals().compositor().create_container_visual()?;
+        Ok(Self {
+            panel: params.panel,
+            container,
+            ratio: params.ratio,
+            content_ratio: params.content_ratio
+        })
+    }
+}
+
+
 #[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(into))]
+#[builder(pattern="owned", build_fn(private, name = "build_default"), setter(into))]
+pub struct RibbonCellParams {
+    #[builder(private,setter(name="panel_private"))]
+    panel: Box<dyn Panel>,
+    #[builder(default = "1.0")]
+    ratio: f32,
+    #[builder(default = "Vector2 { x: 1.0, y: 1.0 }")]
+    content_ratio: Vector2,
+}
+
+impl RibbonCellParamsBuilder {
+     pub fn build(self) -> winrt::Result<RibbonCell> {
+        match self.build_default() {
+            Ok(params) => Ok(RibbonCell::new(params)?),
+            Err(e) => Err(winrt_error(e)()),
+        }
+    }
+    pub fn panel(self, panel: impl Panel + 'static) -> Self {
+        let panel: Box<dyn Panel + 'static> = Box::new(panel);
+        self.panel_private(panel)
+    }
+}   
+
+#[derive(Builder)]
+#[builder(pattern="owned", build_fn(private, name = "build_default"), setter(into))]
 pub struct RibbonParams {
     #[builder(default = "RibbonOrientation::Stack")]
     orientation: RibbonOrientation,
+    #[builder(default = "Vec::new()")]
+    cells: Vec<RibbonCell>,
 }
 
 impl RibbonParamsBuilder {
-    pub fn build(&self) -> winrt::Result<RibbonPanel> {
+    pub fn build(self) -> winrt::Result<RibbonPanel> {
         match self.build_default() {
             Ok(settings) => Ok(RibbonPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)()),
         }
+    }
+    pub fn add_cell(mut self, cell: RibbonCell) -> Self {
+        if self.cells.is_none() {
+            self.cells = Some(Vec::new());
+        }
+        self.cells.as_mut().unwrap().push(cell);
+        self
+    }
+    pub fn add_panel(self, panel: impl Panel + 'static) -> winrt::Result<Self> {
+        Ok(self.add_cell(RibbonCellParamsBuilder::default().panel(panel).build()?))
     }
 }
 
 pub struct RibbonPanel {
     id: usize,
     params: RibbonParams,
-    cells: Vec<RibbonCell>,
     visual: ContainerVisual,
     mouse_position: Option<Vector2>,
 }
@@ -52,7 +99,6 @@ impl RibbonPanel {
         Ok(Self {
             id,
             params,
-            cells: Vec::new(),
             visual,
             mouse_position: None,
         })
@@ -77,12 +123,12 @@ impl RibbonPanel {
             ratio,
             content_ratio,
         };
-        self.cells.push(cell);
+        self.params.cells.push(cell);
         self.resize_cells()?;
         Ok(())
     }
     pub fn pop_panel(&mut self) -> winrt::Result<Box<dyn Panel>> {
-        if let Some(cell) = self.cells.pop() {
+        if let Some(cell) = self.params.cells.pop() {
             self.visual.children()?.remove(cell.container)?;
             self.resize_cells()?;
             Ok(cell.panel)
@@ -93,9 +139,9 @@ impl RibbonPanel {
 
     fn resize_cells(&mut self) -> winrt::Result<()> {
         let size = self.visual.size()?;
-        let total = self.cells.iter().map(|c| c.ratio).sum::<f32>();
+        let total = self.params.cells.iter().map(|c| c.ratio).sum::<f32>();
         let mut pos: f32 = 0.;
-        for cell in &self.cells {
+        for cell in &self.params.cells {
             if self.params.orientation == RibbonOrientation::Stack {
                 let content_size = size.clone() * cell.content_ratio.clone();
                 let content_offset = Vector3 {
@@ -140,7 +186,7 @@ impl RibbonPanel {
     }
 
     pub fn adjust_cells(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        for p in &mut self.cells {
+        for p in &mut self.params.cells {
             p.panel.on_resize(&p.container.size()?, proxy)?;
         }
         Ok(())
@@ -151,7 +197,7 @@ impl RibbonPanel {
         position: &Vector2,
     ) -> winrt::Result<Option<(Vector2, &'a mut RibbonCell)>> {
         // Scan in reverse order and exit immediately on topmost cell when in Stack mode
-        for p in &mut self.cells.iter_mut().rev() {
+        for p in &mut self.params.cells.iter_mut().rev() {
             let offset = p.container.offset()?;
             let size = p.container.size()?;
             let position = Vector2 {
@@ -185,7 +231,7 @@ impl Panel for RibbonPanel {
     }
 
     fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
-        for p in &mut self.cells {
+        for p in &mut self.params.cells {
             p.panel.on_idle(proxy)?;
         }
         Ok(())
@@ -219,7 +265,7 @@ impl Panel for RibbonPanel {
         if id == self.id() {
             Some(self.as_any_mut())
         } else {
-            for p in &mut self.cells {
+            for p in &mut self.params.cells {
                 if let Some(panel) = p.panel.find_panel(id) {
                     return Some(panel);
                 }
@@ -233,7 +279,7 @@ impl Panel for RibbonPanel {
         input: winit::event::KeyboardInput,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<bool> {
-        for p in &mut self.cells.iter_mut().rev() {
+        for p in &mut self.params.cells.iter_mut().rev() {
             if self.params.orientation == RibbonOrientation::Stack {
                 return p.panel.on_keyboard_input(input, proxy);
             } else {
@@ -247,7 +293,7 @@ impl Panel for RibbonPanel {
 
     fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         self.on_resize(&self.visual().parent()?.size()?, proxy)?;
-        for p in &mut self.cells {
+        for p in &mut self.params.cells {
             p.panel.on_init(proxy)?;
         }
         Ok(())
@@ -258,7 +304,7 @@ impl Panel for RibbonPanel {
         panel_event: &mut crate::main_window::PanelEvent,
         proxy: &PanelEventProxy,
     ) -> winrt::Result<()> {
-        for p in &mut self.cells {
+        for p in &mut self.params.cells {
             p.panel.on_panel_event(panel_event, proxy)?;
         }
         Ok(())
