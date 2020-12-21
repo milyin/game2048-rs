@@ -23,6 +23,9 @@ pub struct RibbonCell {
 impl RibbonCell {
     pub fn new(params: RibbonCellParams) -> winrt::Result<Self> {
         let container = globals().compositor().create_container_visual()?;
+        container
+            .children()?
+            .insert_at_top(params.panel.visual().clone())?;
         Ok(Self {
             panel: params.panel,
             container,
@@ -96,6 +99,9 @@ impl RibbonPanel {
     pub fn new(params: RibbonParams) -> winrt::Result<Self> {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
+        for p in &params.cells {
+            visual.children()?.insert_at_top(p.container.clone())?;
+        }
         Ok(Self {
             id,
             params,

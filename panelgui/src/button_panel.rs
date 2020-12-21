@@ -90,6 +90,9 @@ impl ButtonPanel {
         let visual = globals().compositor().create_container_visual()?;
         let background = globals().compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
+        if let Some(ref panel) = params.panel { 
+            visual.children()?.insert_at_top(panel.visual().clone())?;
+        }
         Ok(Self {
             handle,
             params,

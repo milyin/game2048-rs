@@ -81,7 +81,7 @@ impl MessageBoxPanel {
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
         let handle_cancel = button_cancel.handle();
-       let mut ribbon_buttons = RibbonParamsBuilder::default()
+        let mut ribbon_buttons = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Horizontal);
         let mut control_manager = ControlManager::new();
         if params.button_flags.contains(MessageBoxButton::Yes) {
