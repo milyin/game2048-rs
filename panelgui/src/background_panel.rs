@@ -13,7 +13,7 @@ use winit::event::{ElementState, KeyboardInput, MouseButton};
 use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(Builder)]
-#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+#[builder(default, setter(into))]
 pub struct BackgroundParams {
     color: Color,
     round_corners: bool,
@@ -29,9 +29,9 @@ impl Default for BackgroundParams {
 }
 
 impl BackgroundParamsBuilder {
-    pub fn build(&self) -> winrt::Result<BackgroundPanel> {
-        match self.build_default() {
-            Ok(settings) => Ok(BackgroundPanel::new(settings)?),
+    pub fn create(&self) -> winrt::Result<BackgroundPanel> {
+        match self.build() {
+            Ok(params) => Ok(BackgroundPanel::new(params)?),
             Err(e) => Err(winrt_error(e)()),
         }
     }

@@ -37,7 +37,7 @@ impl RibbonCell {
 
 
 #[derive(Builder)]
-#[builder(pattern="owned", build_fn(private, name = "build_default"), setter(into))]
+#[builder(pattern="owned", setter(into))]
 pub struct RibbonCellParams {
     #[builder(private,setter(name="panel_private"))]
     panel: Box<dyn Panel>,
@@ -48,8 +48,8 @@ pub struct RibbonCellParams {
 }
 
 impl RibbonCellParamsBuilder {
-     pub fn build(self) -> winrt::Result<RibbonCell> {
-        match self.build_default() {
+     pub fn create(self) -> winrt::Result<RibbonCell> {
+        match self.build() {
             Ok(params) => Ok(RibbonCell::new(params)?),
             Err(e) => Err(winrt_error(e)()),
         }
@@ -61,7 +61,7 @@ impl RibbonCellParamsBuilder {
 }   
 
 #[derive(Builder)]
-#[builder(pattern="owned", build_fn(private, name = "build_default"), setter(into))]
+#[builder(pattern="owned", setter(into))]
 pub struct RibbonParams {
     #[builder(default = "RibbonOrientation::Stack")]
     orientation: RibbonOrientation,
@@ -70,8 +70,8 @@ pub struct RibbonParams {
 }
 
 impl RibbonParamsBuilder {
-    pub fn build(self) -> winrt::Result<RibbonPanel> {
-        match self.build_default() {
+    pub fn create(self) -> winrt::Result<RibbonPanel> {
+        match self.build() {
             Ok(settings) => Ok(RibbonPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)()),
         }
@@ -84,7 +84,7 @@ impl RibbonParamsBuilder {
         self
     }
     pub fn add_panel(self, panel: impl Panel + 'static) -> winrt::Result<Self> {
-        Ok(self.add_cell(RibbonCellParamsBuilder::default().panel(panel).build()?))
+        Ok(self.add_cell(RibbonCellParamsBuilder::default().panel(panel).create()?))
     }
 }
 

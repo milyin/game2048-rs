@@ -37,7 +37,7 @@ pub enum MessageBoxButton {
 impl PanelHandle<MessageBoxPanel, MessageBoxButton> for MessageBoxPanelHandle {}
 
 #[derive(Builder)]
-#[builder(build_fn(private, name = "build_default"), setter(into))]
+#[builder(setter(into))]
 pub struct MessageBoxParams {
     #[builder(default = "MessageBoxButton::Ok.into()")]
     button_flags: BitFlags<MessageBoxButton>,
@@ -46,8 +46,8 @@ pub struct MessageBoxParams {
 }
 
 impl MessageBoxParamsBuilder {
-    pub fn build(&self) -> winrt::Result<MessageBoxPanel> {
-        match self.build_default() {
+    pub fn create(&self) -> winrt::Result<MessageBoxPanel> {
+        match self.build() {
             Ok(settings) => Ok(MessageBoxPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)()),
         }
@@ -71,12 +71,12 @@ impl MessageBoxPanel {
         let background = BackgroundParamsBuilder::default()
             .color(Colors::wheat()?)
             .round_corners(true)
-            .build()?;
-        let message_panel = TextParamsBuilder::default().text(params.message).build()?;
-        let button_yes = ButtonParamsBuilder::default().text("Yes")?.build()?;
-        let button_no = ButtonParamsBuilder::default().text("No")?.build()?;
-        let button_ok = ButtonParamsBuilder::default().text("OK")?.build()?;
-        let button_cancel = ButtonParamsBuilder::default().text("Cancel")?.build()?;
+            .create()?;
+        let message_panel = TextParamsBuilder::default().text(params.message).create()?;
+        let button_yes = ButtonParamsBuilder::default().text("Yes")?.create()?;
+        let button_no = ButtonParamsBuilder::default().text("No")?.create()?;
+        let button_ok = ButtonParamsBuilder::default().text("OK")?.create()?;
+        let button_cancel = ButtonParamsBuilder::default().text("Cancel")?.create()?;
         let handle_yes = button_yes.handle();
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
@@ -103,13 +103,13 @@ impl MessageBoxPanel {
          let ribbon = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Vertical)
             .add_panel(message_panel)?
-            .add_panel(ribbon_buttons.build()?)?
-            .build()?;
+            .add_panel(ribbon_buttons.create()?)?
+            .create()?;
         let root_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Stack)
             .add_panel(background)?
             .add_panel(ribbon)?
-            .build()?;
+            .create()?;
  
         let visual = globals().compositor().create_container_visual()?;
         visual.children()?.insert_at_top(root_panel.visual())?;

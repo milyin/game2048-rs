@@ -43,7 +43,7 @@ impl ControlHandle for TextPanelHandle {
 }
 
 #[derive(Builder)]
-#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+#[builder(default, setter(into))]
 pub struct TextParams {
     text: Cow<'static, str>,
     enabled: bool,
@@ -61,8 +61,8 @@ impl Default for TextParams {
 }
 
 impl TextParamsBuilder {
-    pub fn build(&self) -> winrt::Result<TextPanel> {
-        match self.build_default() {
+    pub fn create(&self) -> winrt::Result<TextPanel> {
+        match self.build() {
             Ok(settings) => Ok(TextPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)()),
         }

@@ -42,22 +42,22 @@ impl MainPanel {
 
         let mut root_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Stack)
-            .build()?;
+            .create()?;
         let background_panel = BackgroundParamsBuilder::default()
             .color(Colors::white()?)
-            .build()?;
+            .create()?;
         let game_field_panel = GameFieldPanel::new()?;
-        let score_panel = TextParamsBuilder::default().build()?;
-        let mut undo_button_panel = ButtonParamsBuilder::default().build()?;
-        let undo_button_text_panel = TextParamsBuilder::default().text("⮌").build()?;
-        let mut reset_button_panel = ButtonParamsBuilder::default().build()?;
-        let reset_button_text_panel = TextParamsBuilder::default().text("⭯").build()?;
+        let score_panel = TextParamsBuilder::default().create()?;
+        let mut undo_button_panel = ButtonParamsBuilder::default().create()?;
+        let undo_button_text_panel = TextParamsBuilder::default().text("⮌").create()?;
+        let mut reset_button_panel = ButtonParamsBuilder::default().create()?;
+        let reset_button_text_panel = TextParamsBuilder::default().text("⭯").create()?;
         let mut vribbon_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Vertical)
-            .build()?;
+            .create()?;
         let mut hribbon_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Horizontal)
-            .build()?;
+            .create()?;
 
         // Take handles
         let game_field_handle = game_field_panel.handle();
@@ -112,7 +112,7 @@ impl MainPanel {
         let message_box = MessageBoxParamsBuilder::default()
             .message("Start new game?")
             .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
-            .build()?;
+            .create()?;
         self.message_box_reset_handle = Some(message_box.handle());
         self.root_panel
             .push_panel_sized(message_box, 1.0, Vector2 { x: 0.9, y: 0.4 })?;

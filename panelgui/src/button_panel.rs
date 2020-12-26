@@ -27,7 +27,7 @@ enum ButtonMode {
     Focused,
 }
 #[derive(Default, Builder)]
-#[builder(default, pattern="owned", build_fn(private, name = "build_default"), setter(into))]
+#[builder(default, pattern="owned", setter(into))]
 pub struct ButtonParams {
     #[builder(default = "true")]
     enabled: bool,
@@ -36,9 +36,9 @@ pub struct ButtonParams {
 }
 
 impl ButtonParamsBuilder {
-    pub fn build(self) -> winrt::Result<ButtonPanel> {
-        match self.build_default() {
-            Ok(settings) => Ok(ButtonPanel::new(settings)?),
+    pub fn create(self) -> winrt::Result<ButtonPanel> {
+        match self.build() {
+            Ok(params) => Ok(ButtonPanel::new(params)?),
             Err(e) => Err(winrt_error(e)()),
         }
     }
@@ -47,7 +47,7 @@ impl ButtonParamsBuilder {
         self.panel_private(panel)
     }
     pub fn text(self, text: impl Into<Cow<'static, str>>) -> winrt::Result<Self> {
-        Ok(self.panel(TextParamsBuilder::default().text(text).build()?))
+        Ok(self.panel(TextParamsBuilder::default().text(text).create()?))
     }
 }
 
