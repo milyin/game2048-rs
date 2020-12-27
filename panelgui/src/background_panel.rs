@@ -13,9 +13,11 @@ use winit::event::{ElementState, KeyboardInput, MouseButton};
 use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
 
 #[derive(Builder)]
-#[builder(default, setter(into))]
+#[builder(setter(into))]
 pub struct BackgroundParams {
+    #[builder(default = "{Colors::white().unwrap()}")]
     color: Color,
+    #[builder(default = "{false}")]
     round_corners: bool,
 }
 

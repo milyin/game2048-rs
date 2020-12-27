@@ -39,9 +39,9 @@ impl PanelHandle<MessageBoxPanel, MessageBoxButton> for MessageBoxPanelHandle {}
 #[derive(Builder)]
 #[builder(setter(into))]
 pub struct MessageBoxParams {
-    #[builder(default = "MessageBoxButton::Ok.into()")]
+    #[builder(default = "{MessageBoxButton::Ok.into()}")]
     button_flags: BitFlags<MessageBoxButton>,
-    #[builder(default = "\"\".into()")]
+    #[builder(default = "{\"\".into()}")]
     message: Cow<'static, str>,
 }
 
@@ -81,8 +81,8 @@ impl MessageBoxPanel {
         let handle_no = button_no.handle();
         let handle_ok = button_ok.handle();
         let handle_cancel = button_cancel.handle();
-        let mut ribbon_buttons = RibbonParamsBuilder::default()
-            .orientation(RibbonOrientation::Horizontal);
+        let mut ribbon_buttons =
+            RibbonParamsBuilder::default().orientation(RibbonOrientation::Horizontal);
         let mut control_manager = ControlManager::new();
         if params.button_flags.contains(MessageBoxButton::Yes) {
             ribbon_buttons = ribbon_buttons.add_panel(button_yes)?;
@@ -100,7 +100,7 @@ impl MessageBoxPanel {
             ribbon_buttons = ribbon_buttons.add_panel(button_cancel)?;
             control_manager.add_control(handle_cancel.clone());
         }
-         let ribbon = RibbonParamsBuilder::default()
+        let ribbon = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Vertical)
             .add_panel(message_panel)?
             .add_panel(ribbon_buttons.create()?)?
@@ -110,7 +110,7 @@ impl MessageBoxPanel {
             .add_panel(background)?
             .add_panel(ribbon)?
             .create()?;
- 
+
         let visual = globals().compositor().create_container_visual()?;
         visual.children()?.insert_at_top(root_panel.visual())?;
         Ok(Self {

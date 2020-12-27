@@ -30,25 +30,24 @@ impl RibbonCell {
             panel: params.panel,
             container,
             ratio: params.ratio,
-            content_ratio: params.content_ratio
+            content_ratio: params.content_ratio,
         })
     }
 }
 
-
 #[derive(Builder)]
-#[builder(pattern="owned", setter(into))]
+#[builder(pattern = "owned", setter(into))]
 pub struct RibbonCellParams {
-    #[builder(private,setter(name="panel_private"))]
+    #[builder(private, setter(name = "panel_private"))]
     panel: Box<dyn Panel>,
-    #[builder(default = "1.0")]
+    #[builder(default = "{1.0}")]
     ratio: f32,
-    #[builder(default = "Vector2 { x: 1.0, y: 1.0 }")]
+    #[builder(default = "{Vector2 { x: 1.0, y: 1.0 }}")]
     content_ratio: Vector2,
 }
 
 impl RibbonCellParamsBuilder {
-     pub fn create(self) -> winrt::Result<RibbonCell> {
+    pub fn create(self) -> winrt::Result<RibbonCell> {
         match self.build() {
             Ok(params) => Ok(RibbonCell::new(params)?),
             Err(e) => Err(winrt_error(e)()),
@@ -58,14 +57,14 @@ impl RibbonCellParamsBuilder {
         let panel: Box<dyn Panel + 'static> = Box::new(panel);
         self.panel_private(panel)
     }
-}   
+}
 
 #[derive(Builder)]
-#[builder(pattern="owned", setter(into))]
+#[builder(pattern = "owned", setter(into))]
 pub struct RibbonParams {
-    #[builder(default = "RibbonOrientation::Stack")]
+    #[builder(default = "{RibbonOrientation::Stack}")]
     orientation: RibbonOrientation,
-    #[builder(default = "Vec::new()")]
+    #[builder(default = "{Vec::new()}")]
     cells: Vec<RibbonCell>,
 }
 
