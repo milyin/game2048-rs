@@ -26,13 +26,13 @@ enum ButtonMode {
     Disabled,
     Focused,
 }
-#[derive(Default, Builder)]
-#[builder(default, pattern="owned", setter(into))]
+#[derive(Builder)]
+#[builder(pattern="owned", setter(into))]
 pub struct ButtonParams {
     #[builder(default = "true")]
     enabled: bool,
     #[builder(private,setter(name="panel_private"))]
-    panel: Option<Box<dyn Control>>,
+    panel: Box<dyn Control>,
 }
 
 impl ButtonParamsBuilder {
@@ -90,9 +90,7 @@ impl ButtonPanel {
         let visual = globals().compositor().create_container_visual()?;
         let background = globals().compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
-        if let Some(ref panel) = params.panel { 
-            visual.children()?.insert_at_top(panel.visual().clone())?;
-        }
+        visual.children()?.insert_at_top(params.panel.visual().clone())?;
         Ok(Self {
             handle,
             params,
@@ -105,24 +103,16 @@ impl ButtonPanel {
     pub fn handle(&self) -> ButtonPanelHandle {
         self.handle
     }
-    pub fn remove_panel(&mut self) -> winrt::Result<()> {
-        if let Some(panel) = self.params.panel.take() {
-            self.visual.children()?.remove(panel.visual())?;
-        }
-        Ok(())
-    }
-    pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+/*   pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
         self.remove_panel()?;
         self.visual
             .children()?
             .insert_at_top(panel.visual().clone())?;
         self.params.panel = Some(Box::new(panel));
         Ok(())
-    }
+    }*/
     pub fn panel(&mut self) -> winrt::Result<&mut (dyn Control + 'static)> {
-        self.params.panel
-            .as_deref_mut()
-            .ok_or_else(winrt_error("no panel in ButtonPanel"))
+        Ok(&mut *self.params.panel)
     }
     fn press(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if self.params.enabled {
@@ -243,10 +233,8 @@ impl Panel for ButtonPanel {
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             return Some(self.as_any_mut());
-        } else if let Some(p) = self.params.panel.as_mut() {
-            p.find_panel(id)
         } else {
-            None
+            self.params.panel.find_panel(id)
         }
     }
 

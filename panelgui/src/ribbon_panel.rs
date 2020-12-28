@@ -5,7 +5,7 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{globals, winrt_error, Panel, PanelEventProxy};
+use crate::main_window::{EmptyPanel, Panel, PanelEventProxy, globals, winrt_error};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RibbonOrientation {
@@ -20,6 +20,12 @@ pub struct RibbonCell {
     content_ratio: Vector2,
 }
 
+impl Default for RibbonCell {
+    fn default() -> Self {
+       RibbonCellParamsBuilder::default().panel(EmptyPanel::new().unwrap()).create().unwrap()
+    }
+}
+
 impl RibbonCell {
     pub fn new(params: RibbonCellParams) -> winrt::Result<Self> {
         let container = globals().compositor().create_container_visual()?;
@@ -32,6 +38,9 @@ impl RibbonCell {
             ratio: params.ratio,
             content_ratio: params.content_ratio,
         })
+    }
+    pub fn panel(&self) -> &dyn Panel {
+        &*self.panel
     }
 }
 
@@ -85,6 +94,9 @@ impl RibbonParamsBuilder {
     pub fn add_panel(self, panel: impl Panel + 'static) -> winrt::Result<Self> {
         Ok(self.add_cell(RibbonCellParamsBuilder::default().panel(panel).create()?))
     }
+    pub fn add_panel_with_ratio(self, panel: impl Panel + 'static, ratio: f32) -> winrt::Result<Self> {
+        Ok(self.add_cell(RibbonCellParamsBuilder::default().panel(panel).ratio(ratio).create()?))
+    }
 }
 
 pub struct RibbonPanel {
@@ -108,41 +120,35 @@ impl RibbonPanel {
             mouse_position: None,
         })
     }
-    pub fn push_panel<P: Panel + 'static>(&mut self, panel: P, ratio: f32) -> winrt::Result<()> {
-        self.push_panel_sized(panel, ratio, Vector2 { x: 1., y: 1. })
-    }
-    pub fn push_panel_sized<P: Panel + 'static>(
-        &mut self,
-        panel: P,
-        ratio: f32,
-        content_ratio: Vector2,
-    ) -> winrt::Result<()> {
-        let container = globals().compositor().create_container_visual()?;
-        container
-            .children()?
-            .insert_at_top(panel.visual().clone())?;
-        self.visual.children()?.insert_at_top(container.clone())?;
-        let cell = RibbonCell {
-            panel: Box::new(panel),
-            container,
-            ratio,
-            content_ratio,
-        };
-        self.params.cells.push(cell);
-        self.resize_cells()?;
+    pub fn set_cell_at(&mut self, index: usize, cell: RibbonCell, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        if index >= self.params.cells.len() {
+            return Err(winrt_error("Bad cell index")())
+        }
+        self.visual.children()?.insert_at_top(cell.container.clone())?;
+        self.params.cells.insert(index, cell);
+        self.resize_cells(proxy)?;
         Ok(())
     }
-    pub fn pop_panel(&mut self) -> winrt::Result<Box<dyn Panel>> {
+    pub fn push_cell(&mut self, cell: RibbonCell, proxy: &PanelEventProxy) -> winrt::Result<()> {
+        self.visual.children()?.insert_at_top(cell.container.clone())?;
+        self.params.cells.push(cell);
+        self.resize_cells(proxy)?;
+        Ok(())
+    }
+    pub fn pop_cell(&mut self, proxy: &PanelEventProxy) -> winrt::Result<RibbonCell> {
         if let Some(cell) = self.params.cells.pop() {
-            self.visual.children()?.remove(cell.container)?;
-            self.resize_cells()?;
-            Ok(cell.panel)
+            self.visual.children()?.remove(&cell.container)?;
+            self.resize_cells(proxy)?;
+            Ok(cell)
         } else {
             Err(winrt_error("Ribbon is empty")())
         }
     }
-
-    fn resize_cells(&mut self) -> winrt::Result<()> {
+    pub fn set_len(&mut self, new_len: usize) -> winrt::Result<()> {
+        self.params.cells.resize_with(new_len, Default::default);
+        Ok(())
+    }
+    fn resize_cells(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         let size = self.visual.size()?;
         let total = self.params.cells.iter().map(|c| c.ratio).sum::<f32>();
         let mut pos: f32 = 0.;
@@ -187,16 +193,11 @@ impl RibbonPanel {
                 pos += share;
             }
         }
-        Ok(())
-    }
-
-    pub fn adjust_cells(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         for p in &mut self.params.cells {
             p.panel.on_resize(&p.container.size()?, proxy)?;
         }
         Ok(())
     }
-
     fn get_cell_by_mouse_position<'a>(
         &'a mut self,
         position: &Vector2,
@@ -230,8 +231,7 @@ impl Panel for RibbonPanel {
 
     fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
         self.visual.set_size(size)?;
-        self.resize_cells()?;
-        self.adjust_cells(proxy)?;
+        self.resize_cells(proxy)?;
         Ok(())
     }
 

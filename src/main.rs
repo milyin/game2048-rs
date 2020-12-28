@@ -18,6 +18,7 @@ use panelgui::{
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     ribbon_panel::RibbonParamsBuilder,
+    ribbon_panel::RibbonCellParamsBuilder,
     text_panel::{TextPanelHandle, TextParamsBuilder},
 };
 
@@ -38,26 +39,14 @@ struct MainPanel {
 impl MainPanel {
     pub fn new() -> winrt::Result<Self> {
         let id = globals().get_next_id();
-        let visual = globals().compositor().create_container_visual()?;
 
-        let mut root_panel = RibbonParamsBuilder::default()
-            .orientation(RibbonOrientation::Stack)
-            .create()?;
         let background_panel = BackgroundParamsBuilder::default()
             .color(Colors::white()?)
             .create()?;
         let game_field_panel = GameFieldPanel::new()?;
         let score_panel = TextParamsBuilder::default().create()?;
-        let mut undo_button_panel = ButtonParamsBuilder::default().create()?;
-        let undo_button_text_panel = TextParamsBuilder::default().text("⮌").create()?;
-        let mut reset_button_panel = ButtonParamsBuilder::default().create()?;
-        let reset_button_text_panel = TextParamsBuilder::default().text("⭯").create()?;
-        let mut vribbon_panel = RibbonParamsBuilder::default()
-            .orientation(RibbonOrientation::Vertical)
-            .create()?;
-        let mut hribbon_panel = RibbonParamsBuilder::default()
-            .orientation(RibbonOrientation::Horizontal)
-            .create()?;
+        let undo_button_panel = ButtonParamsBuilder::default().text("⮌")?.create()?;
+        let reset_button_panel = ButtonParamsBuilder::default().text("⭯")?.create()?;
 
         // Take handles
         let game_field_handle = game_field_panel.handle();
@@ -65,15 +54,25 @@ impl MainPanel {
         let undo_button_handle = undo_button_panel.handle();
         let reset_button_handle = reset_button_panel.handle();
 
-        undo_button_panel.set_panel(undo_button_text_panel)?;
-        reset_button_panel.set_panel(reset_button_text_panel)?;
-        hribbon_panel.push_panel(undo_button_panel, 1.)?;
-        hribbon_panel.push_panel(score_panel, 1.)?;
-        hribbon_panel.push_panel(reset_button_panel, 1.)?;
-        vribbon_panel.push_panel(hribbon_panel, 1.)?;
-        vribbon_panel.push_panel(game_field_panel, 4.)?;
-        root_panel.push_panel(background_panel, 1.0)?;
-        root_panel.push_panel(vribbon_panel, 1.0)?;
+        let hribbon_panel = RibbonParamsBuilder::default()
+            .orientation(RibbonOrientation::Horizontal)
+            .add_panel(undo_button_panel)?
+            .add_panel(score_panel)?
+            .add_panel(reset_button_panel)?
+            .create()?;
+        let vribbon_panel = RibbonParamsBuilder::default()
+            .orientation(RibbonOrientation::Vertical)
+            .add_panel(hribbon_panel)?
+            .add_panel_with_ratio(game_field_panel, 4.)?
+            .create()?;
+
+        let root_panel = RibbonParamsBuilder::default()
+            .orientation(RibbonOrientation::Stack)
+            .add_panel(background_panel)?
+            .add_panel(vribbon_panel)?
+            .create()?;
+        
+        let visual = globals().compositor().create_container_visual()?;
         visual
             .children()?
             .insert_at_top(root_panel.visual().clone())?;
@@ -114,16 +113,18 @@ impl MainPanel {
             .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
             .create()?;
         self.message_box_reset_handle = Some(message_box.handle());
-        self.root_panel
-            .push_panel_sized(message_box, 1.0, Vector2 { x: 0.9, y: 0.4 })?;
-        self.root_panel.adjust_cells(proxy)?;
+        let cell = RibbonCellParamsBuilder::default()
+            .panel(message_box)
+            .content_ratio(Vector2 { x:0.9, y: 0.4 })
+            .create()?;
+        self.root_panel.push_cell(cell, proxy)?;
         Ok(())
     }
 
-    fn close_message_box_reset(&mut self) -> winrt::Result<()> {
+    fn close_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if let Some(handle) = self.message_box_reset_handle.take() {
-            let panel = self.root_panel.pop_panel()?;
-            assert!(panel.id() == handle.id());
+            let cell = self.root_panel.pop_cell(proxy)?;
+            assert!(cell.panel().id() == handle.id());
             Ok(())
         } else {
             Err(winrt_error("Message box was not open")())
@@ -222,7 +223,7 @@ impl Panel for MainPanel {
             self.open_message_box_reset(proxy)?;
         } else if let Some(h) = self.message_box_reset_handle.as_ref() {
             if let Some(cmd) = h.extract_event(panel_event) {
-                self.close_message_box_reset()?;
+                self.close_message_box_reset(proxy)?;
                 if cmd == MessageBoxButton::Yes {
                     self.game_field_handle
                         .at(&mut self.root_panel)?
