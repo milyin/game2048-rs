@@ -5,7 +5,7 @@ authors = ["Michael Ilyin <milyin@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-winit = "0.23.0"
+winit = "0.24.0"
 winrt ={ git = "https://github.com/microsoft/winrt-rs" }
 bindings = { path = "bindings" }
 model = { path = "model" }

@@ -4,7 +4,11 @@ use bindings::windows::{
     foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors,
 };
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
-use panelgui::{background_panel::BackgroundParamsBuilder, main_window::globals};
+use panelgui::{
+    background_panel::BackgroundParamsBuilder,
+    main_window::{globals, EmptyPanel},
+    ribbon_panel::RibbonPanelHandle,
+};
 use panelgui::{
     button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
     control::{Control, ControlManager},
@@ -15,10 +19,10 @@ use panelgui::{
     message_box_panel::MessageBoxButton,
     message_box_panel::MessageBoxPanelHandle,
     message_box_panel::MessageBoxParamsBuilder,
+    ribbon_panel::RibbonCellParamsBuilder,
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     ribbon_panel::RibbonParamsBuilder,
-    ribbon_panel::RibbonCellParamsBuilder,
     text_panel::{TextPanelHandle, TextParamsBuilder},
 };
 
@@ -32,6 +36,9 @@ struct MainPanel {
     game_field_handle: GameFieldHandle,
     undo_button_handle: ButtonPanelHandle,
     reset_button_handle: ButtonPanelHandle,
+    horizontal_padding_handle: RibbonPanelHandle,
+    vertical_padding_handle: RibbonPanelHandle,
+    game_panel_handle: RibbonPanelHandle,
     score_handle: TextPanelHandle,
     message_box_reset_handle: Option<MessageBoxPanelHandle>,
 }
@@ -48,30 +55,58 @@ impl MainPanel {
         let undo_button_panel = ButtonParamsBuilder::default().text("⮌")?.create()?;
         let reset_button_panel = ButtonParamsBuilder::default().text("⭯")?.create()?;
 
-        // Take handles
         let game_field_handle = game_field_panel.handle();
         let score_handle = score_panel.handle();
         let undo_button_handle = undo_button_panel.handle();
         let reset_button_handle = reset_button_panel.handle();
 
-        let hribbon_panel = RibbonParamsBuilder::default()
+        let header_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Horizontal)
             .add_panel(undo_button_panel)?
-            .add_panel(score_panel)?
+            .add_panel_with_ratio(score_panel, 2.)?
             .add_panel(reset_button_panel)?
             .create()?;
-        let vribbon_panel = RibbonParamsBuilder::default()
+
+        let game_ribbon = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Vertical)
-            .add_panel(hribbon_panel)?
+            .add_panel(header_panel)?
             .add_panel_with_ratio(game_field_panel, 4.)?
             .create()?;
+
+        let game_panel = RibbonParamsBuilder::default()
+            .orientation(RibbonOrientation::Stack)
+            .add_panel(game_ribbon)?
+            .create()?;
+
+        let game_panel_handle = game_panel.handle();
+
+        let vertical_padding_panel = RibbonParamsBuilder::default()
+            .orientation(RibbonOrientation::Vertical)
+            .add_panel(game_panel)?
+            .add_panel(EmptyPanel::new()?)?
+            .create()?;
+
+        let vertical_padding_handle = vertical_padding_panel.handle();
+
+        let horizontal_padding_panel = RibbonParamsBuilder::default()
+            .orientation(RibbonOrientation::Horizontal)
+            .add_panel(EmptyPanel::new()?)?
+            .add_cell(
+                RibbonCellParamsBuilder::default()
+                    .panel(vertical_padding_panel)
+                    .create()?,
+            )
+            .add_panel(EmptyPanel::new()?)?
+            .create()?;
+
+        let horizontal_padding_handle = horizontal_padding_panel.handle();
 
         let root_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Stack)
             .add_panel(background_panel)?
-            .add_panel(vribbon_panel)?
+            .add_panel(horizontal_padding_panel)?
             .create()?;
-        
+
         let visual = globals().compositor().create_container_visual()?;
         visual
             .children()?
@@ -89,6 +124,9 @@ impl MainPanel {
             game_field_handle,
             undo_button_handle,
             reset_button_handle,
+            horizontal_padding_handle,
+            vertical_padding_handle,
+            game_panel_handle,
             score_handle,
             message_box_reset_handle: None,
         })
@@ -115,15 +153,20 @@ impl MainPanel {
         self.message_box_reset_handle = Some(message_box.handle());
         let cell = RibbonCellParamsBuilder::default()
             .panel(message_box)
-            .content_ratio(Vector2 { x:0.9, y: 0.4 })
+            .content_ratio(Vector2 { x: 0.9, y: 0.4 })
             .create()?;
-        self.root_panel.push_cell(cell, proxy)?;
+        self.game_panel_handle
+            .at(&mut self.root_panel)?
+            .push_cell(cell, proxy)?;
         Ok(())
     }
 
     fn close_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if let Some(handle) = self.message_box_reset_handle.take() {
-            let cell = self.root_panel.pop_cell(proxy)?;
+            let cell = self
+                .game_panel_handle
+                .at(&mut self.root_panel)?
+                .pop_cell(proxy)?;
             assert!(cell.panel().id() == handle.id());
             Ok(())
         } else {
@@ -166,13 +209,36 @@ impl Panel for MainPanel {
         }
     }
 
-    fn on_resize(
-        &mut self,
-        size: &bindings::windows::foundation::numerics::Vector2,
-        proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
         self.visual().set_size(size)?;
-        self.root_panel.on_resize(size, proxy)
+        self.root_panel.on_resize(size, proxy)?;
+
+        let mut width_limit = self
+            .horizontal_padding_handle
+            .at(&mut self.root_panel)?
+            .get_cell_limit(1)?;
+        let mut height_limit = self
+            .vertical_padding_handle
+            .at(&mut self.root_panel)?
+            .get_cell_limit(0)?;
+
+        // size.x / size.y > 4/5
+        if 5. * size.x > 4. * size.y {
+            // x is too large limit width
+            height_limit.set_size(size.y);
+            width_limit.set_size(size.y * 4. / 5.);
+        } else {
+            // y is too large, limit height
+            height_limit.set_size(size.x * 5. / 4.);
+            width_limit.set_size(size.x);
+        }
+        self.horizontal_padding_handle
+            .at(&mut self.root_panel)?
+            .set_cell_limit(1, width_limit, proxy)?;
+        self.vertical_padding_handle
+            .at(&mut self.root_panel)?
+            .set_cell_limit(0, height_limit, proxy)?;
+        Ok(())
     }
 
     fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {

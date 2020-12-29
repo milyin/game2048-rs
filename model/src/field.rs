@@ -232,8 +232,8 @@ impl Field {
         if poses.is_empty() {
             return false;
         }
-        let (x, y) = poses[rng.gen_range(0, poses.len())];
-        let v = rng.gen_range(1, 3);
+        let (x, y) = poses[rng.gen_range(0..poses.len())];
+        let v = rng.gen_range(1..3);
         self.put(x, y, Some(Tile(v, Appear)));
         return true;
     }

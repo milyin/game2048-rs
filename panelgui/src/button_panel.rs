@@ -27,11 +27,11 @@ enum ButtonMode {
     Focused,
 }
 #[derive(Builder)]
-#[builder(pattern="owned", setter(into))]
+#[builder(pattern = "owned", setter(into))]
 pub struct ButtonParams {
-    #[builder(default = "true")]
+    #[builder(default = "{true}")]
     enabled: bool,
-    #[builder(private,setter(name="panel_private"))]
+    #[builder(private, setter(name = "panel_private"))]
     panel: Box<dyn Control>,
 }
 
@@ -90,7 +90,9 @@ impl ButtonPanel {
         let visual = globals().compositor().create_container_visual()?;
         let background = globals().compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
-        visual.children()?.insert_at_top(params.panel.visual().clone())?;
+        visual
+            .children()?
+            .insert_at_top(params.panel.visual().clone())?;
         Ok(Self {
             handle,
             params,
@@ -103,7 +105,7 @@ impl ButtonPanel {
     pub fn handle(&self) -> ButtonPanelHandle {
         self.handle
     }
-/*   pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+    /*   pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
         self.remove_panel()?;
         self.visual
             .children()?

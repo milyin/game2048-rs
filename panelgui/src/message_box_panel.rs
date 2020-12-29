@@ -72,7 +72,10 @@ impl MessageBoxPanel {
             .color(Colors::wheat()?)
             .round_corners(true)
             .create()?;
-        let message_panel = TextParamsBuilder::default().text(params.message).create()?;
+        let message_panel = TextParamsBuilder::default()
+            .text(params.message)
+            .font_scale(3.)
+            .create()?;
         let button_yes = ButtonParamsBuilder::default().text("Yes")?.create()?;
         let button_no = ButtonParamsBuilder::default().text("No")?.create()?;
         let button_ok = ButtonParamsBuilder::default().text("OK")?.create()?;
@@ -102,7 +105,7 @@ impl MessageBoxPanel {
         }
         let ribbon = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Vertical)
-            .add_panel(message_panel)?
+            .add_panel_with_ratio(message_panel, 1.5)?
             .add_panel(ribbon_buttons.create()?)?
             .create()?;
         let root_panel = RibbonParamsBuilder::default()
