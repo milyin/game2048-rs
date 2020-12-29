@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, borrow::Cow, collections::HashMap};
 
 use bindings::windows::{
     foundation::numerics::Vector2,
@@ -13,6 +13,7 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 use crate::{
     control::{Control, ControlHandle},
     main_window::{globals, winrt_error, Handle, Panel, PanelEvent, PanelEventProxy, PanelHandle},
+    text_panel::TextParamsBuilder,
 };
 
 #[derive(PartialEq)]
@@ -25,40 +26,54 @@ enum ButtonMode {
     Disabled,
     Focused,
 }
-#[derive(Default, Builder)]
-#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
 pub struct ButtonParams {
-    #[builder(default = "true")]
+    #[builder(default = "{true}")]
     enabled: bool,
+    #[builder(private, setter(name = "panel_private"))]
+    panel: Box<dyn Control>,
 }
 
 impl ButtonParamsBuilder {
-    pub fn build(&self) -> winrt::Result<ButtonPanel> {
-        match self.build_default() {
-            Ok(settings) => Ok(ButtonPanel::new(settings)?),
+    pub fn create(self) -> winrt::Result<ButtonPanel> {
+        match self.build() {
+            Ok(params) => Ok(ButtonPanel::new(params)?),
             Err(e) => Err(winrt_error(e)()),
         }
+    }
+    pub fn panel(self, panel: impl Control + 'static) -> Self {
+        let panel: Box<dyn Control + 'static> = Box::new(panel);
+        self.panel_private(panel)
+    }
+    pub fn text(self, text: impl Into<Cow<'static, str>>) -> winrt::Result<Self> {
+        Ok(self.panel(TextParamsBuilder::default().text(text).create()?))
     }
 }
 
 pub struct ButtonPanel {
-    id: usize,
-    params: ButtonParams,
-    panel: Option<Box<dyn Control>>,
+    handle: ButtonPanelHandle,
     visual: ContainerVisual,
     background: ShapeVisual,
     shapes: HashMap<ButtonMode, (Vector2, CompositionShape)>,
     focused: bool,
+    params: ButtonParams,
 }
 
-#[derive(Copy, Clone)]
-pub struct ButtonPanelHandle {
-    id: usize,
+#[derive(Copy, Clone, PartialEq)]
+pub struct ButtonPanelHandle(usize);
+
+impl ButtonPanelHandle {
+    fn new() -> Self {
+        Self {
+            0: globals().get_next_id(),
+        }
+    }
 }
 
 impl Handle for ButtonPanelHandle {
     fn id(&self) -> usize {
-        self.id
+        self.0
     }
 }
 
@@ -71,14 +86,16 @@ impl ControlHandle for ButtonPanelHandle {
 }
 impl ButtonPanel {
     pub fn new(params: ButtonParams) -> winrt::Result<Self> {
-        let id = globals().get_next_id();
+        let handle = ButtonPanelHandle::new();
         let visual = globals().compositor().create_container_visual()?;
         let background = globals().compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
+        visual
+            .children()?
+            .insert_at_top(params.panel.visual().clone())?;
         Ok(Self {
-            id,
+            handle,
             params,
-            panel: None,
             visual,
             background,
             shapes: HashMap::new(),
@@ -86,30 +103,22 @@ impl ButtonPanel {
         })
     }
     pub fn handle(&self) -> ButtonPanelHandle {
-        ButtonPanelHandle { id: self.id }
+        self.handle
     }
-    pub fn remove_panel(&mut self) -> winrt::Result<()> {
-        if let Some(panel) = self.panel.take() {
-            self.visual.children()?.remove(panel.visual())?;
-        }
-        Ok(())
-    }
-    pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
+    /*   pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> winrt::Result<()> {
         self.remove_panel()?;
         self.visual
             .children()?
             .insert_at_top(panel.visual().clone())?;
-        self.panel = Some(Box::new(panel));
+        self.params.panel = Some(Box::new(panel));
         Ok(())
-    }
+    }*/
     pub fn panel(&mut self) -> winrt::Result<&mut (dyn Control + 'static)> {
-        self.panel
-            .as_deref_mut()
-            .ok_or_else(winrt_error("no panel in ButtonPanel"))
+        Ok(&mut *self.params.panel)
     }
     fn press(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
         if self.params.enabled {
-            proxy.send_panel_event(self.id, ButtonPanelEvent::Pressed)?;
+            proxy.send_panel_event(self.handle.id(), ButtonPanelEvent::Pressed)?;
         }
         Ok(())
     }
@@ -188,7 +197,7 @@ impl ButtonPanel {
 
 impl Panel for ButtonPanel {
     fn id(&self) -> usize {
-        self.id
+        self.handle.id()
     }
     fn visual(&self) -> ContainerVisual {
         self.visual.clone()
@@ -226,10 +235,8 @@ impl Panel for ButtonPanel {
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
         if id == self.id() {
             return Some(self.as_any_mut());
-        } else if let Some(p) = self.panel.as_mut() {
-            p.find_panel(id)
         } else {
-            None
+            self.params.panel.find_panel(id)
         }
     }
 

@@ -43,26 +43,21 @@ impl ControlHandle for TextPanelHandle {
 }
 
 #[derive(Builder)]
-#[builder(default, build_fn(private, name = "build_default"), setter(into))]
+#[builder(pattern = "owned", setter(into))]
 pub struct TextParams {
+    #[builder(default = "{\"\".into()}")]
     text: Cow<'static, str>,
+    #[builder(default = "{true}")]
     enabled: bool,
+    #[builder(default = "{Colors::black().unwrap()}")]
     color: Color,
-}
-
-impl Default for TextParams {
-    fn default() -> Self {
-        Self {
-            text: "".into(),
-            enabled: true,
-            color: Colors::black().unwrap(),
-        }
-    }
+    #[builder(default = "{2.}")]
+    font_scale: f32,
 }
 
 impl TextParamsBuilder {
-    pub fn build(&self) -> winrt::Result<TextPanel> {
-        match self.build_default() {
+    pub fn create(self) -> winrt::Result<TextPanel> {
+        match self.build() {
             Ok(settings) => Ok(TextPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)()),
         }
@@ -129,7 +124,7 @@ impl TextPanel {
             let size = surface.size()?;
             let text_format = CanvasTextFormat::new()?;
             text_format.set_font_family("Arial")?;
-            text_format.set_font_size(size.height / 2.)?;
+            text_format.set_font_size(size.height / self.params.font_scale)?;
             let text: String = self.params.text.clone().into();
             let text_layout = CanvasTextLayout::create(
                 globals().canvas_device(),

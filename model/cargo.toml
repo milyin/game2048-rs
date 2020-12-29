@@ -5,5 +5,5 @@ authors = ["Michael Ilyin <milyin@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-ndarray = "0.13"
-rand="0.7.3"
+ndarray = "0.14.0"
+rand="0.8.0"
