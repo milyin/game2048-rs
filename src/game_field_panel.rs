@@ -210,7 +210,7 @@ impl GameFieldPanel {
             y: 0.0,
             z: 0.0,
         })?;
-        //        root.set_brush(compositor.create_color_brush_with_color(Colors::red()?)?)?;
+        
         root.set_border_mode(CompositionBorderMode::Hard)?;
 
         let game_board_container = compositor.create_container_visual()?;
