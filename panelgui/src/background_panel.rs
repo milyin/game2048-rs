@@ -31,7 +31,7 @@ impl Default for BackgroundParams {
 }
 
 impl BackgroundParamsBuilder {
-    pub fn create(&self) -> winrt::Result<BackgroundPanel> {
+    pub fn create(&self) -> windows::Result<BackgroundPanel> {
         match self.build() {
             Ok(params) => Ok(BackgroundPanel::new(params)?),
             Err(e) => Err(winrt_error(e)()),
@@ -59,7 +59,7 @@ impl Handle for BackgroundPanelHandle {
 impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
-    pub fn new(params: BackgroundParams) -> winrt::Result<Self> {
+    pub fn new(params: BackgroundParams) -> windows::Result<Self> {
         let id = globals().get_next_id();
         let visual = globals().compositor().create_container_visual()?;
         let background_shape = globals().compositor().create_shape_visual()?;
@@ -76,15 +76,15 @@ impl BackgroundPanel {
     pub fn handle(&self) -> BackgroundPanelHandle {
         BackgroundPanelHandle { id: self.id }
     }
-    pub fn set_color(&mut self, color: Color) -> winrt::Result<()> {
+    pub fn set_color(&mut self, color: Color) -> windows::Result<()> {
         self.params.color = color;
         self.redraw_background()
     }
-    pub fn set_round_corners(&mut self, round_corners: bool) -> winrt::Result<()> {
+    pub fn set_round_corners(&mut self, round_corners: bool) -> windows::Result<()> {
         self.params.round_corners = round_corners;
         self.redraw_background()
     }
-    fn redraw_background(&mut self) -> winrt::Result<()> {
+    fn redraw_background(&mut self) -> windows::Result<()> {
         self.background_shape.set_size(self.visual.size()?)?;
         self.background_shape.shapes()?.clear()?;
         self.background_shape
@@ -92,7 +92,7 @@ impl BackgroundPanel {
             .append(self.create_background_shape()?)?;
         Ok(())
     }
-    fn create_background_shape(&self) -> winrt::Result<CompositionShape> {
+    fn create_background_shape(&self) -> windows::Result<CompositionShape> {
         let container_shape = globals().compositor().create_container_shape()?;
         let rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background_shape.size()?)?;
@@ -141,12 +141,12 @@ impl Panel for BackgroundPanel {
         }
     }
 
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
         self.visual.set_size(size.clone())?;
         self.redraw_background()
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
         Ok(())
     }
 
@@ -155,7 +155,7 @@ impl Panel for BackgroundPanel {
         _button: MouseButton,
         _state: ElementState,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         Ok(false)
     }
 
@@ -163,11 +163,11 @@ impl Panel for BackgroundPanel {
         &mut self,
         _input: KeyboardInput,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_init(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_init(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
         Ok(())
     }
 
@@ -175,7 +175,7 @@ impl Panel for BackgroundPanel {
         &mut self,
         _position: &Vector2,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         Ok(())
     }
 
@@ -183,7 +183,7 @@ impl Panel for BackgroundPanel {
         &mut self,
         _panel_event: &mut crate::main_window::PanelEvent,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         Ok(())
     }
 }

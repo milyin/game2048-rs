@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 winit = "0.24.0"
-winrt ={ git = "https://github.com/microsoft/winrt-rs" }
+windows = "0.2.1"
 bindings = { path = "bindings" }
 model = { path = "model" }
 panelgui = { path = "panelgui" }

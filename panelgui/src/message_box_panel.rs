@@ -46,7 +46,7 @@ pub struct MessageBoxParams {
 }
 
 impl MessageBoxParamsBuilder {
-    pub fn create(&self) -> winrt::Result<MessageBoxPanel> {
+    pub fn create(&self) -> windows::Result<MessageBoxPanel> {
         match self.build() {
             Ok(settings) => Ok(MessageBoxPanel::new(settings)?),
             Err(e) => Err(winrt_error(e)()),
@@ -66,7 +66,7 @@ pub struct MessageBoxPanel {
 }
 
 impl MessageBoxPanel {
-    pub fn new(params: MessageBoxParams) -> winrt::Result<Self> {
+    pub fn new(params: MessageBoxParams) -> windows::Result<Self> {
         let id = globals().get_next_id();
         let background = BackgroundParamsBuilder::default()
             .color(Colors::wheat()?)
@@ -153,7 +153,7 @@ impl Panel for MessageBoxPanel {
         }
     }
 
-    fn on_init(&mut self, proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
+    fn on_init(&mut self, proxy: &crate::main_window::PanelEventProxy) -> windows::Result<()> {
         self.root_panel.on_init(proxy)
     }
 
@@ -161,12 +161,12 @@ impl Panel for MessageBoxPanel {
         &mut self,
         size: &bindings::windows::foundation::numerics::Vector2,
         proxy: &crate::main_window::PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         self.visual().set_size(size.clone())?;
         self.root_panel.on_resize(size, proxy)
     }
 
-    fn on_idle(&mut self, proxy: &crate::main_window::PanelEventProxy) -> winrt::Result<()> {
+    fn on_idle(&mut self, proxy: &crate::main_window::PanelEventProxy) -> windows::Result<()> {
         self.root_panel.on_idle(proxy)
     }
 
@@ -174,7 +174,7 @@ impl Panel for MessageBoxPanel {
         &mut self,
         position: &bindings::windows::foundation::numerics::Vector2,
         proxy: &crate::main_window::PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         self.root_panel.on_mouse_move(position, proxy)
     }
 
@@ -183,7 +183,7 @@ impl Panel for MessageBoxPanel {
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
         proxy: &crate::main_window::PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         self.root_panel.on_mouse_input(button, state, proxy)
     }
 
@@ -191,7 +191,7 @@ impl Panel for MessageBoxPanel {
         &mut self,
         input: winit::event::KeyboardInput,
         proxy: &crate::main_window::PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         if let Some(key) = input.virtual_keycode {
             if key == VirtualKeyCode::Escape {
                 proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
@@ -208,7 +208,7 @@ impl Panel for MessageBoxPanel {
         &mut self,
         panel_event: &mut crate::main_window::PanelEvent,
         proxy: &crate::main_window::PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         self.root_panel.on_panel_event(panel_event, proxy)?;
         if self.handle_yes.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
             proxy.send_panel_event(self.id, MessageBoxButton::Yes)?;

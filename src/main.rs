@@ -44,7 +44,7 @@ struct MainPanel {
 }
 
 impl MainPanel {
-    pub fn new() -> winrt::Result<Self> {
+    pub fn new() -> windows::Result<Self> {
         let id = globals().get_next_id();
 
         let background_panel = BackgroundParamsBuilder::default()
@@ -132,7 +132,7 @@ impl MainPanel {
         })
     }
 
-    fn update_buttons(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn update_buttons(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         let game_field = self.game_field_handle.at(&mut self.root_panel)?;
         let can_undo = game_field.can_undo();
         let score = game_field.get_score();
@@ -145,7 +145,7 @@ impl MainPanel {
         Ok(())
     }
 
-    fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         let message_box = MessageBoxParamsBuilder::default()
             .message("Start new game?")
             .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
@@ -161,7 +161,7 @@ impl MainPanel {
         Ok(())
     }
 
-    fn close_message_box_reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn close_message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         if let Some(handle) = self.message_box_reset_handle.take() {
             let cell = self
                 .game_panel_handle
@@ -174,7 +174,7 @@ impl MainPanel {
         }
     }
 
-    fn do_undo(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn do_undo(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         self.game_field_handle
             .at(&mut self.root_panel)?
             .undo(proxy)?;
@@ -195,7 +195,7 @@ impl Panel for MainPanel {
         self
     }
 
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         self.on_resize(&self.visual().parent()?.size()?, proxy)?;
         self.update_buttons(proxy)?;
         self.root_panel.on_init(proxy)
@@ -209,7 +209,7 @@ impl Panel for MainPanel {
         }
     }
 
-    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()> {
         self.visual().set_size(size)?;
         self.root_panel.on_resize(size, proxy)?;
 
@@ -241,7 +241,7 @@ impl Panel for MainPanel {
         Ok(())
     }
 
-    fn on_idle(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_idle(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         self.root_panel.on_idle(proxy)
     }
 
@@ -249,7 +249,7 @@ impl Panel for MainPanel {
         &mut self,
         position: &bindings::windows::foundation::numerics::Vector2,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         self.root_panel.on_mouse_move(position, proxy)
     }
 
@@ -258,7 +258,7 @@ impl Panel for MainPanel {
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         self.root_panel.on_mouse_input(button, state, proxy)
     }
 
@@ -266,7 +266,7 @@ impl Panel for MainPanel {
         &mut self,
         input: winit::event::KeyboardInput,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         Ok(self.root_panel.on_keyboard_input(input, proxy)?
             || self
                 .control_manager
@@ -277,7 +277,7 @@ impl Panel for MainPanel {
         &mut self,
         panel_event: &mut PanelEvent,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         self.root_panel.on_panel_event(panel_event, proxy)?;
         if self.undo_button_handle.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
             self.game_field_handle
@@ -310,7 +310,7 @@ impl Panel for MainPanel {
     }
 }
 
-fn run() -> winrt::Result<()> {
+fn run() -> windows::Result<()> {
     let mut window = MainWindow::new()?;
     window.window().set_title("2048");
     let main_panel = MainPanel::new()?;

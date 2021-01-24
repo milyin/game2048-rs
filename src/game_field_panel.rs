@@ -84,7 +84,7 @@ impl Panel for GameFieldPanel {
     fn visual(&self) -> ContainerVisual {
         self.root.clone()
     }
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
         self.visual().set_size(size.clone())?;
         self.scale_game_board()
     }
@@ -95,7 +95,7 @@ impl Panel for GameFieldPanel {
         &mut self,
         input: KeyboardInput,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         if input.state == ElementState::Pressed {
             if let Some(side) = match input.virtual_keycode {
                 Some(VirtualKeyCode::Left) => Some(Side::Left),
@@ -121,7 +121,7 @@ impl Panel for GameFieldPanel {
         Ok(false)
     }
 
-    fn on_mouse_move(&mut self, position: &Vector2, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_mouse_move(&mut self, position: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
         self.mouse_pos = Some(position.clone());
         Ok(())
     }
@@ -131,7 +131,7 @@ impl Panel for GameFieldPanel {
         button: MouseButton,
         state: ElementState,
         proxy: &PanelEventProxy,
-    ) -> winrt::Result<bool> {
+    ) -> windows::Result<bool> {
         let position = if let Some(ref posiition) = self.mouse_pos {
             posiition
         } else {
@@ -184,11 +184,11 @@ impl Panel for GameFieldPanel {
         }
     }
 
-    fn on_init(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_init(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
         self.init_board()
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> winrt::Result<()> {
+    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
         Ok(())
     }
 
@@ -196,13 +196,13 @@ impl Panel for GameFieldPanel {
         &mut self,
         _panel_event: &mut panelgui::main_window::PanelEvent,
         _proxy: &PanelEventProxy,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         Ok(())
     }
 }
 
 impl GameFieldPanel {
-    pub fn new() -> winrt::Result<Self> {
+    pub fn new() -> windows::Result<Self> {
         let compositor = globals().compositor().clone();
         let root = compositor.create_sprite_visual()?;
         root.set_offset(Vector3 {
@@ -255,7 +255,7 @@ impl GameFieldPanel {
         self.score
     }
 
-    pub fn swipe(&mut self, side: Side, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    pub fn swipe(&mut self, side: Side, proxy: &PanelEventProxy) -> windows::Result<()> {
         if self.field.can_swipe(side) {
             self.score += self.field.swipe(side);
             self.field.append_tile();
@@ -266,7 +266,7 @@ impl GameFieldPanel {
         Ok(())
     }
 
-    pub fn undo(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    pub fn undo(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         if self.field.can_undo() {
             self.score -= self.field.undo();
             self.animate_board()?;
@@ -284,7 +284,7 @@ impl GameFieldPanel {
         (field, 0)
     }
 
-    pub fn reset(&mut self, proxy: &PanelEventProxy) -> winrt::Result<()> {
+    pub fn reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         let (field, score) = Self::reset_field_and_score();
         self.field = field;
         self.score = score;
@@ -297,7 +297,7 @@ impl GameFieldPanel {
         self.field.can_undo()
     }
 
-    pub fn create_tile_shape(&self, color: Color) -> winrt::Result<CompositionShape> {
+    pub fn create_tile_shape(&self, color: Color) -> windows::Result<CompositionShape> {
         let round_rect_geometry = self.compositor.create_rounded_rectangle_geometry()?;
         round_rect_geometry.set_corner_radius(&*TILE_CORNER_RADIUS)?;
         round_rect_geometry.set_size(&*TILE_SIZE)?;
@@ -311,7 +311,7 @@ impl GameFieldPanel {
         Ok(shape)
     }
 
-    pub fn create_background_visual(&self) -> winrt::Result<ShapeVisual> {
+    pub fn create_background_visual(&self) -> windows::Result<ShapeVisual> {
         let background_rect_geometry = self.compositor.create_rounded_rectangle_geometry()?;
         background_rect_geometry.set_corner_radius(&*TILE_CORNER_RADIUS)?;
         background_rect_geometry.set_size(self.get_board_size())?;
@@ -339,7 +339,7 @@ impl GameFieldPanel {
         Ok(background)
     }
 
-    fn scale_game_board(&mut self) -> winrt::Result<()> {
+    fn scale_game_board(&mut self) -> windows::Result<()> {
         let board_size = self.game_board_container.size()?;
         let board_size = board_size + &*GAME_BOARD_MARGIN;
 
@@ -361,7 +361,7 @@ impl GameFieldPanel {
         })
     }
 
-    pub fn get_tile_shape(&mut self, n: u32) -> winrt::Result<CompositionShape> {
+    pub fn get_tile_shape(&mut self, n: u32) -> windows::Result<CompositionShape> {
         if let Some(shape) = self.tile_shapes.get(&n) {
             Ok(shape.clone())
         } else {
@@ -371,7 +371,7 @@ impl GameFieldPanel {
         }
     }
 
-    pub fn get_tile_text_layout(&mut self, n: u32) -> winrt::Result<CanvasTextLayout> {
+    pub fn get_tile_text_layout(&mut self, n: u32) -> windows::Result<CanvasTextLayout> {
         if let Some(text_layout) = self.tile_text_layouts.get(&n) {
             Ok(text_layout.clone())
         } else {
@@ -394,7 +394,7 @@ impl GameFieldPanel {
         }
     }
 
-    fn create_tile_visual(&mut self, x: usize, y: usize, n: u32) -> winrt::Result<Visual> {
+    fn create_tile_visual(&mut self, x: usize, y: usize, n: u32) -> windows::Result<Visual> {
         let surface = self.composition_graphics_device.create_drawing_surface(
             Size {
                 width: TILE_RECT_SIZE.x,
@@ -442,7 +442,7 @@ impl GameFieldPanel {
         Ok(visual)
     }
 
-    fn hold_tile_visual(&mut self, x: usize, y: usize, n: u32) -> winrt::Result<Visual> {
+    fn hold_tile_visual(&mut self, x: usize, y: usize, n: u32) -> windows::Result<Visual> {
         if let Some((visual, visual_n)) = self.game_board_tiles.remove(&(x, y)) {
             if n == visual_n {
                 Ok(visual)
@@ -461,7 +461,7 @@ impl GameFieldPanel {
         from_y: usize,
         x: usize,
         y: usize,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         let compositor = visual.compositor()?;
         let animation = compositor.create_vector3_key_frame_animation()?;
         let animate_from = Vector3 {
@@ -480,7 +480,7 @@ impl GameFieldPanel {
         Ok(())
     }
 
-    fn animated_appear_tile(visual: &Visual) -> winrt::Result<()> {
+    fn animated_appear_tile(visual: &Visual) -> windows::Result<()> {
         let compositor = visual.compositor()?;
 
         let animation = compositor.create_vector3_key_frame_animation()?;
@@ -513,7 +513,7 @@ impl GameFieldPanel {
         x: usize,
         y: usize,
         n: u32,
-    ) -> winrt::Result<Visual> {
+    ) -> windows::Result<Visual> {
         if let Some((visual, visual_n)) = self.game_board_tiles.remove(&(from_x, from_y)) {
             Self::animated_move_tile(&visual, from_x, from_y, x, y)?;
             if n == visual_n {
@@ -533,7 +533,7 @@ impl GameFieldPanel {
         from_y: usize,
         x: usize,
         y: usize,
-    ) -> winrt::Result<()> {
+    ) -> windows::Result<()> {
         if let Some((visual, _)) = self.game_board_tiles.remove(&(from_x, from_y)) {
             Self::animated_move_tile(&visual, from_x, from_y, x, y)?;
             self.removed_tiles.push(visual);
@@ -550,12 +550,12 @@ impl GameFieldPanel {
         x: usize,
         y: usize,
         n: u32,
-    ) -> winrt::Result<Visual> {
+    ) -> windows::Result<Visual> {
         self.move_tile_visual_then_drop(from_x2, from_y2, x, y)?;
         self.move_tile_visual(from_x1, from_y1, x, y, n)
     }
 
-    fn garbage_collect_tiles(&mut self) -> winrt::Result<()> {
+    fn garbage_collect_tiles(&mut self) -> windows::Result<()> {
         while let Some(tile) = self.removed_tiles.pop() {
             self.game_board_container.children()?.remove(tile)?;
         }
@@ -569,7 +569,7 @@ impl GameFieldPanel {
         } + &*TILE_OFFSET * 2.
     }
 
-    fn init_board(&mut self) -> winrt::Result<()> {
+    fn init_board(&mut self) -> windows::Result<()> {
         self.game_board_container.set_size(self.get_board_size())?;
         self.game_board_container.children()?.remove_all()?;
         self.game_board_container
@@ -579,7 +579,7 @@ impl GameFieldPanel {
         self.animate_board()
     }
 
-    fn animate_board(&mut self) -> winrt::Result<()> {
+    fn animate_board(&mut self) -> windows::Result<()> {
         self.garbage_collect_tiles()?;
         let mut new_board_tiles = HashMap::new();
         for x in 0..self.field.width() {
@@ -617,7 +617,7 @@ impl GameFieldPanel {
         Ok(())
     }
 
-    fn get_tile_color(n: u32) -> winrt::Result<Color> {
+    fn get_tile_color(n: u32) -> windows::Result<Color> {
         match n {
             1 => Colors::gray(),
             2 => ColorHelper::from_argb(255, 238, 228, 218),
@@ -635,7 +635,7 @@ impl GameFieldPanel {
         }
     }
 
-    fn get_tile_font_color(n: u32) -> winrt::Result<Color> {
+    fn get_tile_font_color(n: u32) -> windows::Result<Color> {
         if n < 8 {
             Colors::dim_gray()
         } else {
