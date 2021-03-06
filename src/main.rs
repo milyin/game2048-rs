@@ -132,13 +132,13 @@ impl MainPanel {
         })
     }
 
-    fn update_buttons(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn update_buttons(&mut self) -> windows::Result<()> {
         let game_field = self.game_field_handle.at(&mut self.root_panel)?;
         let can_undo = game_field.can_undo();
         let score = game_field.get_score();
         self.undo_button_handle
             .at(&mut self.root_panel)?
-            .enable(proxy, can_undo)?;
+            .enable(can_undo)?;
         self.score_handle
             .at(&mut self.root_panel)?
             .set_text(score.to_string())?;
@@ -161,7 +161,7 @@ impl MainPanel {
         }
     */
 
-    fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn open_message_box_reset(&mut self) -> windows::Result<()> {
         let message_box = MessageBoxParamsBuilder::default()
             .message("Start new game?")
             .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
@@ -173,16 +173,16 @@ impl MainPanel {
             .create()?;
         self.game_panel_handle
             .at(&mut self.root_panel)?
-            .push_cell(cell, proxy)?;
+            .push_cell(cell)?;
         Ok(())
     }
 
-    fn close_message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn close_message_box_reset(&mut self) -> windows::Result<()> {
         if let Some(handle) = self.message_box_reset_handle.take() {
             let cell = self
                 .game_panel_handle
                 .at(&mut self.root_panel)?
-                .pop_cell(proxy)?;
+                .pop_cell()?;
             assert!(cell.panel().id() == handle.id());
             Ok(())
         } else {
@@ -190,10 +190,8 @@ impl MainPanel {
         }
     }
 
-    fn do_undo(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.game_field_handle
-            .at(&mut self.root_panel)?
-            .undo(proxy)?;
+    fn do_undo(&mut self) -> windows::Result<()> {
+        self.game_field_handle.at(&mut self.root_panel)?.undo()?;
         Ok(())
     }
 }
@@ -211,10 +209,10 @@ impl Panel for MainPanel {
         self
     }
 
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?, proxy)?;
-        self.update_buttons(proxy)?;
-        self.root_panel.on_init(proxy)
+    fn on_init(&mut self) -> windows::Result<()> {
+        self.on_resize(&self.visual().parent()?.size()?)?;
+        self.update_buttons()?;
+        self.root_panel.on_init()
     }
 
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any> {
@@ -225,9 +223,9 @@ impl Panel for MainPanel {
         }
     }
 
-    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual().set_size(size)?;
-        self.root_panel.on_resize(size, proxy)?;
+        self.root_panel.on_resize(size)?;
 
         let mut width_limit = self
             .horizontal_padding_handle
@@ -250,77 +248,63 @@ impl Panel for MainPanel {
         }
         self.horizontal_padding_handle
             .at(&mut self.root_panel)?
-            .set_cell_limit(1, width_limit, proxy)?;
+            .set_cell_limit(1, width_limit)?;
         self.vertical_padding_handle
             .at(&mut self.root_panel)?
-            .set_cell_limit(0, height_limit, proxy)?;
+            .set_cell_limit(0, height_limit)?;
         Ok(())
     }
 
-    fn on_idle(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.root_panel.on_idle(proxy)
+    fn on_idle(&mut self) -> windows::Result<()> {
+        self.root_panel.on_idle()
     }
 
     fn on_mouse_move(
         &mut self,
         position: &bindings::windows::foundation::numerics::Vector2,
-        proxy: &PanelEventProxy,
     ) -> windows::Result<()> {
-        self.root_panel.on_mouse_move(position, proxy)
+        self.root_panel.on_mouse_move(position)
     }
 
     fn on_mouse_input(
         &mut self,
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
-        proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
-        self.root_panel.on_mouse_input(button, state, proxy)
+        self.root_panel.on_mouse_input(button, state)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        input: winit::event::KeyboardInput,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
-        Ok(self.root_panel.on_keyboard_input(input, proxy)?
+    fn on_keyboard_input(&mut self, input: winit::event::KeyboardInput) -> windows::Result<bool> {
+        Ok(self.root_panel.on_keyboard_input(input)?
             || self
                 .control_manager
-                .process_keyboard_input(input, &mut self.root_panel, proxy)?)
+                .process_keyboard_input(input, &mut self.root_panel)?)
     }
 
-    fn on_panel_event(
-        &mut self,
-        panel_event: &mut PanelEvent,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
-        self.root_panel.on_panel_event(panel_event, proxy)?;
+    fn on_panel_event(&mut self, panel_event: &mut PanelEvent) -> windows::Result<()> {
+        self.root_panel.on_panel_event(panel_event)?;
         if self.undo_button_handle.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            self.game_field_handle
-                .at(&mut self.root_panel)?
-                .undo(proxy)?;
+            self.game_field_handle.at(&mut self.root_panel)?.undo()?;
         } else if self.reset_button_handle.extract_event(panel_event)
             == Some(ButtonPanelEvent::Pressed)
         {
-            self.open_message_box_reset(proxy)?;
+            self.open_message_box_reset()?;
         } else if let Some(h) = self.message_box_reset_handle.as_ref() {
             if let Some(cmd) = h.extract_event(panel_event) {
-                self.close_message_box_reset(proxy)?;
+                self.close_message_box_reset()?;
                 if cmd == MessageBoxButton::Yes {
-                    self.game_field_handle
-                        .at(&mut self.root_panel)?
-                        .reset(proxy)?;
+                    self.game_field_handle.at(&mut self.root_panel)?.reset()?;
                 }
             }
         } else if let Some(cmd) = self.game_field_handle.extract_event(panel_event) {
             match cmd {
-                GameFieldPanelEvent::Changed => self.update_buttons(proxy)?,
-                GameFieldPanelEvent::UndoRequested => self.do_undo(proxy)?,
-                GameFieldPanelEvent::ResetRequested => self.open_message_box_reset(proxy)?,
+                GameFieldPanelEvent::Changed => self.update_buttons()?,
+                GameFieldPanelEvent::UndoRequested => self.do_undo()?,
+                GameFieldPanelEvent::ResetRequested => self.open_message_box_reset()?,
             }
         } else {
             self.control_manager
-                .process_panel_event(panel_event, &mut self.root_panel, proxy)?;
+                .process_panel_event(panel_event, &mut self.root_panel)?;
         }
         Ok(())
     }

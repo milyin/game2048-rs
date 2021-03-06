@@ -13,7 +13,7 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 use crate::{
     control::{Control, ControlHandle},
     main_window::{
-        compositor, get_next_id, winrt_error, Handle, Panel, PanelEvent, PanelEventProxy,
+        compositor, get_next_id, send_panel_event, winrt_error, Handle, Panel, PanelEvent,
         PanelHandle,
     },
     text_panel::TextParamsBuilder,
@@ -117,9 +117,9 @@ impl ButtonPanel {
     pub fn panel(&mut self) -> windows::Result<&mut (dyn Control + 'static)> {
         Ok(&mut *self.params.panel)
     }
-    fn press(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn press(&mut self) -> windows::Result<()> {
         if self.params.enabled {
-            proxy.send_panel_event(self.handle.id(), ButtonPanelEvent::Pressed)?;
+            send_panel_event(self.handle.id(), ButtonPanelEvent::Pressed)?;
         }
         Ok(())
     }
@@ -198,25 +198,24 @@ impl Panel for ButtonPanel {
         self.visual.clone()
     }
 
-    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual.set_size(self.visual.parent()?.size()?)?;
         self.redraw_background()?;
-        self.panel()?.on_resize(size, proxy)
+        self.panel()?.on_resize(size)
     }
 
-    fn on_idle(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.panel()?.on_idle(proxy)
+    fn on_idle(&mut self) -> windows::Result<()> {
+        self.panel()?.on_idle()
     }
 
     fn on_mouse_input(
         &mut self,
         button: MouseButton,
         state: ElementState,
-        proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         if self.is_enabled()? && button == MouseButton::Left && state == ElementState::Pressed {
-            self.set_focus(proxy)?;
-            self.press(proxy)?;
+            self.set_focus()?;
+            self.press()?;
             Ok(true)
         } else {
             Ok(false)
@@ -235,26 +234,22 @@ impl Panel for ButtonPanel {
         }
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        input: KeyboardInput,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, input: KeyboardInput) -> windows::Result<bool> {
         if self.is_focused()? && self.is_enabled()? {
             if input.state == ElementState::Pressed {
                 if let Some(code) = input.virtual_keycode {
                     match code {
                         VirtualKeyCode::Escape => {
-                            self.clear_focus(proxy)?;
+                            self.clear_focus()?;
                             return Ok(true);
                         }
                         VirtualKeyCode::Tab => {
                             // TODO: Check WindowEvent::ModifiersChanged modifiers for shift-tab
-                            self.set_focus_to_next(proxy)?;
+                            self.set_focus_to_next()?;
                             return Ok(true);
                         }
                         VirtualKeyCode::Return => {
-                            self.press(proxy)?;
+                            self.press()?;
                             return Ok(true);
                         }
                         _ => {}
@@ -265,24 +260,16 @@ impl Panel for ButtonPanel {
         Ok(false)
     }
 
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.panel()?.on_init(proxy)
+    fn on_init(&mut self) -> windows::Result<()> {
+        self.panel()?.on_init()
     }
 
-    fn on_mouse_move(
-        &mut self,
-        position: &Vector2,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
-        self.panel()?.on_mouse_move(position, proxy)
+    fn on_mouse_move(&mut self, position: &Vector2) -> windows::Result<()> {
+        self.panel()?.on_mouse_move(position)
     }
 
-    fn on_panel_event(
-        &mut self,
-        panel_event: &mut PanelEvent,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
-        self.panel()?.on_panel_event(panel_event, proxy)
+    fn on_panel_event(&mut self, panel_event: &mut PanelEvent) -> windows::Result<()> {
+        self.panel()?.on_panel_event(panel_event)
     }
 }
 

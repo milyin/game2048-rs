@@ -2,6 +2,7 @@ use futures::executor::{LocalPool, LocalSpawner};
 use lazy_static::lazy_static;
 use std::{
     any::Any,
+    cell::RefCell,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -39,30 +40,33 @@ pub trait Panel {
     fn visual(&self) -> ContainerVisual;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn find_panel(&mut self, id: usize) -> Option<&mut dyn Any>;
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()>;
-    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()>;
-    fn on_idle(&mut self, proxy: &PanelEventProxy) -> windows::Result<()>;
-    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy)
-        -> windows::Result<()>;
-    fn on_mouse_input(
-        &mut self,
-        button: MouseButton,
-        state: ElementState,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<bool>;
-    fn on_keyboard_input(
-        &mut self,
-        input: KeyboardInput,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<bool>;
-    fn on_panel_event(
-        &mut self,
-        panel_event: &mut PanelEvent,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()>;
+    fn on_init(&mut self) -> windows::Result<()>;
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()>;
+    fn on_idle(&mut self) -> windows::Result<()>;
+    fn on_mouse_move(&mut self, position: &Vector2) -> windows::Result<()>;
+    fn on_mouse_input(&mut self, button: MouseButton, state: ElementState)
+        -> windows::Result<bool>;
+    fn on_keyboard_input(&mut self, input: KeyboardInput) -> windows::Result<bool>;
+    fn on_panel_event(&mut self, panel_event: &mut PanelEvent) -> windows::Result<()>;
 }
 
-//proxy: Option<Arc<Mutex<EventLoopProxy<PanelEvent>>>>,
+thread_local! {
+    static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<PanelEvent>>> = RefCell::new(None);
+}
+
+pub fn send_panel_event<T: Any>(panel_id: usize, command: T) -> windows::Result<()> {
+    EVENT_LOOP_PROXY.with(|proxy| {
+        proxy
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .send_event(PanelEvent {
+                panel_id,
+                data: Some(Box::new(command)),
+            })
+            .map_err(|e| winrt_error(e)())
+    })
+}
 //spawner: Option<Arc<Mutex<LocalSpawner>>>,
 
 lazy_static! {
@@ -136,7 +140,6 @@ pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> win
 
 pub struct PanelEventProxy {
     proxy: EventLoopProxy<PanelEvent>,
-    spawner: LocalSpawner,
 }
 
 impl PanelEventProxy {
@@ -182,23 +185,19 @@ impl Panel for EmptyPanel {
         }
     }
 
-    fn on_init(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_init(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
-    fn on_resize(&mut self, _size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, _size: &Vector2) -> windows::Result<()> {
         Ok(())
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
-    fn on_mouse_move(
-        &mut self,
-        _position: &Vector2,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, _position: &Vector2) -> windows::Result<()> {
         Ok(())
     }
 
@@ -206,45 +205,31 @@ impl Panel for EmptyPanel {
         &mut self,
         _button: MouseButton,
         _state: ElementState,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        _input: KeyboardInput,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, _input: KeyboardInput) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_panel_event(
-        &mut self,
-        _panel_event: &mut PanelEvent,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, _panel_event: &mut PanelEvent) -> windows::Result<()> {
         Ok(())
     }
 }
 
+// TODO: Consider make MainWindow static
 pub struct MainWindow {
     root: ContainerVisual,
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
-    pool: Option<LocalPool>,
-    proxy: Option<PanelEventProxy>,
     window: Window,
 }
 
 impl MainWindow {
     pub fn new() -> windows::Result<Self> {
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
-        let pool = LocalPool::new();
-        let proxy = PanelEventProxy {
-            proxy: event_loop.create_proxy(),
-            spawner: pool.spawner(),
-        };
+        EVENT_LOOP_PROXY.with(|p| *p.borrow_mut() = Some(event_loop.create_proxy()));
         let compositor = compositor();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         let target = window.create_window_target(&compositor, false)?;
@@ -263,8 +248,6 @@ impl MainWindow {
             root,
             _target: target,
             event_loop: Some(event_loop),
-            pool: Some(pool),
-            proxy: Some(proxy),
             window,
         })
     }
@@ -274,26 +257,15 @@ impl MainWindow {
     pub fn visual(&self) -> &ContainerVisual {
         &self.root
     }
-    pub fn proxy(&self) -> windows::Result<&PanelEventProxy> {
-        if let Some(ref p) = self.proxy {
-            Ok(p)
-        } else {
-            Err(winrt_error(
-                "unexpected error: proxy should be in Window struct until event loop run",
-            )())
-        }
-    }
-
     pub fn run(mut self, mut panel: impl Panel + 'static) -> windows::Result<()> {
         let event_loop = self.event_loop.take().unwrap();
-        let mut pool = self.pool.take().unwrap();
-        let proxy = self.proxy.take().unwrap();
+        //        let mut pool = self.pool.take().unwrap();
         self.visual().children()?.insert_at_top(panel.visual())?;
-        panel.on_init(&proxy)?;
+        panel.on_init()?;
         event_loop.run(move |mut evt, _, control_flow| {
             // just to allow '?' usage
             let mut run = || -> windows::Result<()> {
-                pool.run_until_stalled();
+                //pool.run_until_stalled();
                 *control_flow = ControlFlow::Wait;
                 match &mut evt {
                     Event::WindowEvent { event, window_id } => match event {
@@ -303,7 +275,7 @@ impl MainWindow {
                                 y: size.height as f32,
                             };
                             self.root.set_size(&size)?;
-                            panel.on_resize(&size, &proxy)?;
+                            panel.on_resize(&size)?;
                         }
                         WindowEvent::CloseRequested => {
                             if *window_id == self.window.id() {
@@ -312,25 +284,25 @@ impl MainWindow {
                             }
                         }
                         WindowEvent::KeyboardInput { input, .. } => {
-                            let _ = panel.on_keyboard_input(*input, &proxy)?;
+                            let _ = panel.on_keyboard_input(*input)?;
                         }
                         WindowEvent::CursorMoved { position, .. } => {
                             let position = Vector2 {
                                 x: position.x as f32,
                                 y: position.y as f32,
                             };
-                            panel.on_mouse_move(&position, &proxy)?;
+                            panel.on_mouse_move(&position)?;
                         }
                         WindowEvent::MouseInput { state, button, .. } => {
-                            let _ = panel.on_mouse_input(*button, *state, &proxy)?;
+                            let _ = panel.on_mouse_input(*button, *state)?;
                         }
                         _ => {}
                     },
                     Event::MainEventsCleared => {
-                        panel.on_idle(&proxy)?;
+                        panel.on_idle()?;
                     }
                     Event::UserEvent(ref mut panel_event) => {
-                        panel.on_panel_event(panel_event, &proxy)?;
+                        panel.on_panel_event(panel_event)?;
                     }
                     _ => {}
                 }

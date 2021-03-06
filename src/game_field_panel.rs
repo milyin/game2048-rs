@@ -26,8 +26,8 @@ use bindings::{
 use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
 use panelgui::main_window::{
-    canvas_device, composition_graphics_device, compositor, get_next_id, Handle, Panel,
-    PanelEventProxy, PanelHandle,
+    canvas_device, composition_graphics_device, compositor, get_next_id, send_panel_event, Handle,
+    Panel, PanelEventProxy, PanelHandle,
 };
 use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
@@ -87,18 +87,14 @@ impl Panel for GameFieldPanel {
     fn visual(&self) -> ContainerVisual {
         self.root.clone()
     }
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual().set_size(size.clone())?;
         self.scale_game_board()
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
-    fn on_keyboard_input(
-        &mut self,
-        input: KeyboardInput,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, input: KeyboardInput) -> windows::Result<bool> {
         if input.state == ElementState::Pressed {
             if let Some(side) = match input.virtual_keycode {
                 Some(VirtualKeyCode::Left) => Some(Side::Left),
@@ -111,24 +107,20 @@ impl Panel for GameFieldPanel {
                 Some(VirtualKeyCode::S) => Some(Side::Down),
                 _ => None,
             } {
-                self.swipe(side, proxy)?;
+                self.swipe(side)?;
                 return Ok(true);
             } else if input.virtual_keycode == Some(VirtualKeyCode::Back) {
-                proxy.send_panel_event(self.id, GameFieldPanelEvent::UndoRequested)?;
+                send_panel_event(self.id, GameFieldPanelEvent::UndoRequested)?;
                 return Ok(true);
             } else if input.virtual_keycode == Some(VirtualKeyCode::R) {
-                proxy.send_panel_event(self.id, GameFieldPanelEvent::ResetRequested)?;
+                send_panel_event(self.id, GameFieldPanelEvent::ResetRequested)?;
                 return Ok(true);
             }
         }
         Ok(false)
     }
 
-    fn on_mouse_move(
-        &mut self,
-        position: &Vector2,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, position: &Vector2) -> windows::Result<()> {
         self.mouse_pos = Some(position.clone());
         Ok(())
     }
@@ -137,7 +129,6 @@ impl Panel for GameFieldPanel {
         &mut self,
         button: MouseButton,
         state: ElementState,
-        proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         let position = if let Some(ref posiition) = self.mouse_pos {
             posiition
@@ -167,15 +158,15 @@ impl Panel for GameFieldPanel {
                 }
                 if dx_abs > dy_abs {
                     if dx.is_sign_positive() {
-                        self.swipe(Side::Right, proxy)?;
+                        self.swipe(Side::Right)?;
                     } else {
-                        self.swipe(Side::Left, proxy)?;
+                        self.swipe(Side::Left)?;
                     }
                 } else {
                     if dy.is_sign_positive() {
-                        self.swipe(Side::Down, proxy)?;
+                        self.swipe(Side::Down)?;
                     } else {
-                        self.swipe(Side::Up, proxy)?;
+                        self.swipe(Side::Up)?;
                     }
                 }
             }
@@ -191,18 +182,17 @@ impl Panel for GameFieldPanel {
         }
     }
 
-    fn on_init(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_init(&mut self) -> windows::Result<()> {
         self.init_board()
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
     fn on_panel_event(
         &mut self,
         _panel_event: &mut panelgui::main_window::PanelEvent,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<()> {
         Ok(())
     }
@@ -262,23 +252,23 @@ impl GameFieldPanel {
         self.score
     }
 
-    pub fn swipe(&mut self, side: Side, proxy: &PanelEventProxy) -> windows::Result<()> {
+    pub fn swipe(&mut self, side: Side) -> windows::Result<()> {
         if self.field.can_swipe(side) {
             self.score += self.field.swipe(side);
             self.field.append_tile();
             self.field.append_tile();
             self.animate_board()?;
-            proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
+            send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         }
         Ok(())
     }
 
-    pub fn undo(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    pub fn undo(&mut self) -> windows::Result<()> {
         if self.field.can_undo() {
             self.score -= self.field.undo();
             self.animate_board()?;
             self.field.hold_all(); // do not allow undo undo
-            proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
+            send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         }
         Ok(())
     }
@@ -291,12 +281,12 @@ impl GameFieldPanel {
         (field, 0)
     }
 
-    pub fn reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    pub fn reset(&mut self) -> windows::Result<()> {
         let (field, score) = Self::reset_field_and_score();
         self.field = field;
         self.score = score;
         self.animate_board()?;
-        proxy.send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
+        send_panel_event(self.id, GameFieldPanelEvent::Changed)?;
         Ok(())
     }
 

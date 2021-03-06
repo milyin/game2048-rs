@@ -5,7 +5,9 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{EmptyPanel, Handle, Panel, PanelEventProxy, PanelHandle, compositor, get_next_id, winrt_error};
+use crate::main_window::{
+    compositor, get_next_id, winrt_error, EmptyPanel, Handle, Panel, PanelEventProxy, PanelHandle,
+};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RibbonOrientation {
@@ -232,12 +234,7 @@ impl RibbonPanel {
     pub fn handle(&self) -> RibbonPanelHandle {
         self.handle.clone()
     }
-    pub fn set_cell_at(
-        &mut self,
-        index: usize,
-        cell: RibbonCell,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    pub fn set_cell_at(&mut self, index: usize, cell: RibbonCell) -> windows::Result<()> {
         if index >= self.params.cells.len() {
             return Err(winrt_error("Bad cell index")());
         }
@@ -245,7 +242,7 @@ impl RibbonPanel {
             .children()?
             .insert_at_top(cell.container.clone())?;
         self.params.cells.insert(index, cell);
-        self.resize_cells(proxy)?;
+        self.resize_cells()?;
         Ok(())
     }
     pub fn get_cell_limit(&self, index: usize) -> windows::Result<CellLimit> {
@@ -255,15 +252,10 @@ impl RibbonPanel {
             Err(winrt_error("Wrong cell index")())
         }
     }
-    pub fn set_cell_limit(
-        &mut self,
-        index: usize,
-        limit: CellLimit,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    pub fn set_cell_limit(&mut self, index: usize, limit: CellLimit) -> windows::Result<()> {
         if let Some(cell) = self.params.cells.get_mut(index) {
             cell.limit = limit;
-            self.resize_cells(proxy)?;
+            self.resize_cells()?;
             Ok(())
         } else {
             Err(winrt_error("Wrong cell index")())
@@ -275,18 +267,18 @@ impl RibbonPanel {
     ) -> windows::Result<Option<&'a mut RibbonCell>> {
         Ok(self.params.cells.get_mut(index))
     }*/
-    pub fn push_cell(&mut self, cell: RibbonCell, proxy: &PanelEventProxy) -> windows::Result<()> {
+    pub fn push_cell(&mut self, cell: RibbonCell) -> windows::Result<()> {
         self.visual
             .children()?
             .insert_at_top(cell.container.clone())?;
         self.params.cells.push(cell);
-        self.resize_cells(proxy)?;
+        self.resize_cells()?;
         Ok(())
     }
-    pub fn pop_cell(&mut self, proxy: &PanelEventProxy) -> windows::Result<RibbonCell> {
+    pub fn pop_cell(&mut self) -> windows::Result<RibbonCell> {
         if let Some(cell) = self.params.cells.pop() {
             self.visual.children()?.remove(&cell.container)?;
-            self.resize_cells(proxy)?;
+            self.resize_cells()?;
             Ok(cell)
         } else {
             Err(winrt_error("Ribbon is empty")())
@@ -296,7 +288,7 @@ impl RibbonPanel {
         self.params.cells.resize_with(new_len, Default::default);
         Ok(())
     }
-    fn resize_cells(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn resize_cells(&mut self) -> windows::Result<()> {
         let size = self.visual.size()?;
         if self.params.orientation == RibbonOrientation::Stack {
             for cell in &self.params.cells {
@@ -351,7 +343,7 @@ impl RibbonPanel {
             }
         }
         for p in &mut self.params.cells {
-            p.panel.on_resize(&p.container.size()?, proxy)?;
+            p.panel.on_resize(&p.container.size()?)?;
         }
         Ok(())
     }
@@ -386,27 +378,23 @@ impl Panel for RibbonPanel {
         self.visual.clone()
     }
 
-    fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual.set_size(size)?;
-        self.resize_cells(proxy)?;
+        self.resize_cells()?;
         Ok(())
     }
 
-    fn on_idle(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         for p in &mut self.params.cells {
-            p.panel.on_idle(proxy)?;
+            p.panel.on_idle()?;
         }
         Ok(())
     }
 
-    fn on_mouse_move(
-        &mut self,
-        position: &Vector2,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, position: &Vector2) -> windows::Result<()> {
         self.mouse_position = Some(position.clone());
         if let Some((position, cell)) = self.get_cell_by_mouse_position(position)? {
-            cell.panel.on_mouse_move(&position, proxy)?;
+            cell.panel.on_mouse_move(&position)?;
         }
         Ok(())
     }
@@ -415,11 +403,10 @@ impl Panel for RibbonPanel {
         &mut self,
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
-        proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         if let Some(position) = self.mouse_position.clone() {
             if let Some((_, cell)) = self.get_cell_by_mouse_position(&position)? {
-                return cell.panel.on_mouse_input(button, state, proxy);
+                return cell.panel.on_mouse_input(button, state);
             }
         }
         Ok(false)
@@ -440,16 +427,12 @@ impl Panel for RibbonPanel {
         }
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        input: winit::event::KeyboardInput,
-        proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, input: winit::event::KeyboardInput) -> windows::Result<bool> {
         for p in &mut self.params.cells.iter_mut().rev() {
             if self.params.orientation == RibbonOrientation::Stack {
-                return p.panel.on_keyboard_input(input, proxy);
+                return p.panel.on_keyboard_input(input);
             } else {
-                if p.panel.on_keyboard_input(input, proxy)? {
+                if p.panel.on_keyboard_input(input)? {
                     return Ok(true);
                 }
             }
@@ -457,10 +440,10 @@ impl Panel for RibbonPanel {
         Ok(false)
     }
 
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?, proxy)?;
+    fn on_init(&mut self) -> windows::Result<()> {
+        self.on_resize(&self.visual().parent()?.size()?)?;
         for p in &mut self.params.cells {
-            p.panel.on_init(proxy)?;
+            p.panel.on_init()?;
         }
         Ok(())
     }
@@ -468,10 +451,9 @@ impl Panel for RibbonPanel {
     fn on_panel_event(
         &mut self,
         panel_event: &mut crate::main_window::PanelEvent,
-        proxy: &PanelEventProxy,
     ) -> windows::Result<()> {
         for p in &mut self.params.cells {
-            p.panel.on_panel_event(panel_event, proxy)?;
+            p.panel.on_panel_event(panel_event)?;
         }
         Ok(())
     }

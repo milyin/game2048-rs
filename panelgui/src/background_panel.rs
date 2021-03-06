@@ -10,7 +10,9 @@ use bindings::windows::{
 use float_ord::FloatOrd;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{Handle, Panel, PanelEventProxy, PanelHandle, compositor, get_next_id, winrt_error};
+use crate::main_window::{
+    compositor, get_next_id, winrt_error, Handle, Panel, PanelHandle,
+};
 
 #[derive(Builder)]
 #[builder(setter(into))]
@@ -106,12 +108,8 @@ impl BackgroundPanel {
         } else {
             rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
         }
-        let brush = 
-            compositor()
-            .create_color_brush_with_color(self.params.color.clone())?;
-        let rect = 
-            compositor()
-            .create_sprite_shape_with_geometry(rect_geometry)?;
+        let brush = compositor().create_color_brush_with_color(self.params.color.clone())?;
+        let rect = compositor().create_sprite_shape_with_geometry(rect_geometry)?;
         rect.set_fill_brush(brush)?;
         rect.set_offset(Vector2 { x: 0., y: 0. })?;
         container_shape.shapes()?.append(rect)?;
@@ -141,12 +139,12 @@ impl Panel for BackgroundPanel {
         }
     }
 
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual.set_size(size.clone())?;
         self.redraw_background()
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
@@ -154,35 +152,25 @@ impl Panel for BackgroundPanel {
         &mut self,
         _button: MouseButton,
         _state: ElementState,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        _input: KeyboardInput,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, _input: KeyboardInput) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_init(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_init(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
-    fn on_mouse_move(
-        &mut self,
-        _position: &Vector2,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, _position: &Vector2) -> windows::Result<()> {
         Ok(())
     }
 
     fn on_panel_event(
         &mut self,
         _panel_event: &mut crate::main_window::PanelEvent,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<()> {
         Ok(())
     }

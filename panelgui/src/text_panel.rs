@@ -18,7 +18,13 @@ use bindings::{
     },
 };
 
-use crate::{control::{Control, ControlHandle}, main_window::{Handle, Panel, PanelEventProxy, PanelHandle, canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error}};
+use crate::{
+    control::{Control, ControlHandle},
+    main_window::{
+        canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error, Handle,
+        Panel, PanelHandle,
+    },
+};
 
 #[derive(Copy, Clone)]
 pub struct TextPanelHandle {
@@ -151,14 +157,14 @@ impl Panel for TextPanel {
         self.visual.clone().into()
     }
 
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual.set_size(size)?;
         self.resize_surface()?;
         self.redraw_text()?;
         Ok(())
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         Ok(())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -173,15 +179,11 @@ impl Panel for TextPanel {
         }
     }
 
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?, proxy)
+    fn on_init(&mut self) -> windows::Result<()> {
+        self.on_resize(&self.visual().parent()?.size()?)
     }
 
-    fn on_mouse_move(
-        &mut self,
-        _position: &Vector2,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, _position: &Vector2) -> windows::Result<()> {
         Ok(())
     }
 
@@ -189,23 +191,17 @@ impl Panel for TextPanel {
         &mut self,
         _button: winit::event::MouseButton,
         _state: winit::event::ElementState,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        _input: winit::event::KeyboardInput,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, _input: winit::event::KeyboardInput) -> windows::Result<bool> {
         Ok(false)
     }
 
     fn on_panel_event(
         &mut self,
         _panel_event: &mut crate::main_window::PanelEvent,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<()> {
         Ok(())
     }
