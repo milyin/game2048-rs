@@ -3,15 +3,15 @@ use std::borrow::Cow;
 use enumflags2::BitFlags;
 
 use bindings::windows::ui::{composition::ContainerVisual, Colors};
+use futures::future::ok;
 use winit::event::VirtualKeyCode;
 
 use crate::{
     background_panel::BackgroundParamsBuilder,
     button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
     control::ControlManager,
-    main_window::globals,
     main_window::winrt_error,
-    main_window::{Handle, Panel, PanelHandle},
+    main_window::{compositor, get_next_id, Handle, Panel, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     ribbon_panel::RibbonParamsBuilder,
@@ -23,6 +23,12 @@ pub struct MessageBoxPanelHandle(usize);
 impl Handle for MessageBoxPanelHandle {
     fn id(&self) -> usize {
         self.0
+    }
+}
+
+impl MessageBoxPanelHandle {
+    pub async fn do_modal() -> MessageBoxButton {
+        MessageBoxButton::Cancel
     }
 }
 
@@ -67,7 +73,7 @@ pub struct MessageBoxPanel {
 
 impl MessageBoxPanel {
     pub fn new(params: MessageBoxParams) -> windows::Result<Self> {
-        let id = globals().get_next_id();
+        let id = get_next_id();
         let background = BackgroundParamsBuilder::default()
             .color(Colors::wheat()?)
             .round_corners(true)
@@ -114,7 +120,7 @@ impl MessageBoxPanel {
             .add_panel(ribbon)?
             .create()?;
 
-        let visual = globals().compositor().create_container_visual()?;
+        let visual = compositor().create_container_visual()?;
         visual.children()?.insert_at_top(root_panel.visual())?;
         Ok(Self {
             id,

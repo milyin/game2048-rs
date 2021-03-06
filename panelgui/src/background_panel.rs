@@ -10,7 +10,7 @@ use bindings::windows::{
 use float_ord::FloatOrd;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
+use crate::main_window::{Handle, Panel, PanelEventProxy, PanelHandle, compositor, get_next_id, winrt_error};
 
 #[derive(Builder)]
 #[builder(setter(into))]
@@ -60,9 +60,9 @@ impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
     pub fn new(params: BackgroundParams) -> windows::Result<Self> {
-        let id = globals().get_next_id();
-        let visual = globals().compositor().create_container_visual()?;
-        let background_shape = globals().compositor().create_shape_visual()?;
+        let id = get_next_id();
+        let visual = compositor().create_container_visual()?;
+        let background_shape = compositor().create_shape_visual()?;
         visual
             .children()?
             .insert_at_bottom(background_shape.clone())?;
@@ -93,8 +93,8 @@ impl BackgroundPanel {
         Ok(())
     }
     fn create_background_shape(&self) -> windows::Result<CompositionShape> {
-        let container_shape = globals().compositor().create_container_shape()?;
-        let rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
+        let container_shape = compositor().create_container_shape()?;
+        let rect_geometry = compositor().create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background_shape.size()?)?;
         if self.params.round_corners {
             let size = rect_geometry.size()?;
@@ -106,11 +106,11 @@ impl BackgroundPanel {
         } else {
             rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
         }
-        let brush = globals()
-            .compositor()
+        let brush = 
+            compositor()
             .create_color_brush_with_color(self.params.color.clone())?;
-        let rect = globals()
-            .compositor()
+        let rect = 
+            compositor()
             .create_sprite_shape_with_geometry(rect_geometry)?;
         rect.set_fill_brush(brush)?;
         rect.set_offset(Vector2 { x: 0., y: 0. })?;

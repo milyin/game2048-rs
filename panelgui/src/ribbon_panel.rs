@@ -5,9 +5,7 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{
-    globals, winrt_error, EmptyPanel, Handle, Panel, PanelEventProxy, PanelHandle,
-};
+use crate::main_window::{EmptyPanel, Handle, Panel, PanelEventProxy, PanelHandle, compositor, get_next_id, winrt_error};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RibbonOrientation {
@@ -33,7 +31,7 @@ impl Default for RibbonCell {
 
 impl RibbonCell {
     pub fn new(params: RibbonCellParams) -> windows::Result<Self> {
-        let container = globals().compositor().create_container_visual()?;
+        let container = compositor().create_container_visual()?;
         container
             .children()?
             .insert_at_top(params.panel.visual().clone())?;
@@ -132,9 +130,7 @@ pub struct RibbonPanelHandle(usize);
 
 impl RibbonPanelHandle {
     fn new() -> Self {
-        Self {
-            0: globals().get_next_id(),
-        }
+        Self { 0: get_next_id() }
     }
 }
 
@@ -222,7 +218,7 @@ fn adjust_cells(limits: Vec<CellLimit>, mut target: f32) -> Vec<f32> {
 impl RibbonPanel {
     pub fn new(params: RibbonParams) -> windows::Result<Self> {
         let handle = RibbonPanelHandle::new();
-        let visual = globals().compositor().create_container_visual()?;
+        let visual = compositor().create_container_visual()?;
         for p in &params.cells {
             visual.children()?.insert_at_top(p.container.clone())?;
         }
@@ -403,7 +399,11 @@ impl Panel for RibbonPanel {
         Ok(())
     }
 
-    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_mouse_move(
+        &mut self,
+        position: &Vector2,
+        proxy: &PanelEventProxy,
+    ) -> windows::Result<()> {
         self.mouse_position = Some(position.clone());
         if let Some((position, cell)) = self.get_cell_by_mouse_position(position)? {
             cell.panel.on_mouse_move(&position, proxy)?;

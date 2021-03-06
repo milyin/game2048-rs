@@ -12,7 +12,10 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{globals, winrt_error, Handle, Panel, PanelEvent, PanelEventProxy, PanelHandle},
+    main_window::{
+        compositor, get_next_id, winrt_error, Handle, Panel, PanelEvent, PanelEventProxy,
+        PanelHandle,
+    },
     text_panel::TextParamsBuilder,
 };
 
@@ -65,9 +68,7 @@ pub struct ButtonPanelHandle(usize);
 
 impl ButtonPanelHandle {
     fn new() -> Self {
-        Self {
-            0: globals().get_next_id(),
-        }
+        Self { 0: get_next_id() }
     }
 }
 
@@ -87,8 +88,8 @@ impl ControlHandle for ButtonPanelHandle {
 impl ButtonPanel {
     pub fn new(params: ButtonParams) -> windows::Result<Self> {
         let handle = ButtonPanelHandle::new();
-        let visual = globals().compositor().create_container_visual()?;
-        let background = globals().compositor().create_shape_visual()?;
+        let visual = compositor().create_container_visual()?;
+        let background = compositor().create_shape_visual()?;
         visual.children()?.insert_at_bottom(background.clone())?;
         visual
             .children()?
@@ -134,8 +135,8 @@ impl ButtonPanel {
         Ok(shape)
     }
     fn create_shape(mode: ButtonMode, size: &Vector2) -> windows::Result<CompositionShape> {
-        let container_shape = globals().compositor().create_container_shape()?;
-        let round_rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
+        let container_shape = compositor().create_container_shape()?;
+        let round_rect_geometry = compositor().create_rounded_rectangle_geometry()?;
         let offset = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
         round_rect_geometry.set_corner_radius(Vector2 {
             x: offset,
@@ -157,15 +158,9 @@ impl ButtonPanel {
             ButtonMode::Disabled => (Colors::white()?, 1.),
             ButtonMode::Focused => (Colors::black()?, 1.),
         };
-        let fill_brush = globals()
-            .compositor()
-            .create_color_brush_with_color(Colors::white()?)?;
-        let stroke_brush = globals()
-            .compositor()
-            .create_color_brush_with_color(border_color)?;
-        let rect = globals()
-            .compositor()
-            .create_sprite_shape_with_geometry(round_rect_geometry)?;
+        let fill_brush = compositor().create_color_brush_with_color(Colors::white()?)?;
+        let stroke_brush = compositor().create_color_brush_with_color(border_color)?;
+        let rect = compositor().create_sprite_shape_with_geometry(round_rect_geometry)?;
         rect.set_fill_brush(fill_brush)?;
         rect.set_stroke_brush(stroke_brush)?;
         rect.set_stroke_thickness(border_thickness)?;
@@ -274,7 +269,11 @@ impl Panel for ButtonPanel {
         self.panel()?.on_init(proxy)
     }
 
-    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_mouse_move(
+        &mut self,
+        position: &Vector2,
+        proxy: &PanelEventProxy,
+    ) -> windows::Result<()> {
         self.panel()?.on_mouse_move(position, proxy)
     }
 

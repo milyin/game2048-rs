@@ -25,7 +25,10 @@ use bindings::{
 };
 use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
-use panelgui::main_window::{globals, Handle, Panel, PanelEventProxy, PanelHandle};
+use panelgui::main_window::{
+    canvas_device, composition_graphics_device, compositor, get_next_id, Handle, Panel,
+    PanelEventProxy, PanelHandle,
+};
 use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 lazy_static! {
@@ -121,7 +124,11 @@ impl Panel for GameFieldPanel {
         Ok(false)
     }
 
-    fn on_mouse_move(&mut self, position: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_mouse_move(
+        &mut self,
+        position: &Vector2,
+        _proxy: &PanelEventProxy,
+    ) -> windows::Result<()> {
         self.mouse_pos = Some(position.clone());
         Ok(())
     }
@@ -203,14 +210,14 @@ impl Panel for GameFieldPanel {
 
 impl GameFieldPanel {
     pub fn new() -> windows::Result<Self> {
-        let compositor = globals().compositor().clone();
+        let compositor = compositor().clone();
         let root = compositor.create_sprite_visual()?;
         root.set_offset(Vector3 {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         })?;
-        
+
         root.set_border_mode(CompositionBorderMode::Hard)?;
 
         let game_board_container = compositor.create_container_visual()?;
@@ -230,10 +237,10 @@ impl GameFieldPanel {
         let (field, score) = Self::reset_field_and_score();
 
         Ok(Self {
-            id: globals().get_next_id(),
+            id: get_next_id(),
             compositor,
-            canvas_device: globals().canvas_device().clone(),
-            composition_graphics_device: globals().composition_graphics_device().clone(),
+            canvas_device: canvas_device().clone(),
+            composition_graphics_device: composition_graphics_device().clone(),
             root: root.into(),
             game_board_container,
             game_board_tiles: HashMap::new(),

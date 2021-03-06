@@ -1,20 +1,27 @@
+use futures::executor::{LocalPool, LocalSpawner};
 use lazy_static::lazy_static;
 use std::{
     any::Any,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use crate::{
-    interop::create_dispatcher_queue_controller_for_current_thread, 
+    interop::create_dispatcher_queue_controller_for_current_thread,
     window_target::CompositionDesktopWindowTargetSource,
 };
-use bindings::microsoft::graphics::canvas::ui::composition::CanvasComposition;
 use bindings::microsoft::graphics::canvas::CanvasDevice;
 use bindings::windows::foundation::numerics::Vector2;
 use bindings::windows::ui::composition::desktop::DesktopWindowTarget;
 use bindings::windows::ui::composition::CompositionGraphicsDevice;
 use bindings::windows::ui::composition::Compositor;
 use bindings::windows::ui::composition::ContainerVisual;
+use bindings::{
+    microsoft::graphics::canvas::ui::composition::CanvasComposition,
+    windows::system::DispatcherQueueController,
+};
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, MouseButton, WindowEvent},
@@ -35,7 +42,8 @@ pub trait Panel {
     fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()>;
     fn on_resize(&mut self, size: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()>;
     fn on_idle(&mut self, proxy: &PanelEventProxy) -> windows::Result<()>;
-    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy) -> windows::Result<()>;
+    fn on_mouse_move(&mut self, position: &Vector2, proxy: &PanelEventProxy)
+        -> windows::Result<()>;
     fn on_mouse_input(
         &mut self,
         button: MouseButton,
@@ -54,53 +62,37 @@ pub trait Panel {
     ) -> windows::Result<()>;
 }
 
-#[derive(Clone)]
-pub struct PanelGlobals {
-    compositor: Compositor,
-    canvas_device: CanvasDevice,
-    composition_graphics_device: CompositionGraphicsDevice,
-    next_id: Arc<Mutex<usize>>,
-}
+//proxy: Option<Arc<Mutex<EventLoopProxy<PanelEvent>>>>,
+//spawner: Option<Arc<Mutex<LocalSpawner>>>,
 
 lazy_static! {
-    static ref PANEL_GLOBALS: PanelGlobals = {
-        let _controller = create_dispatcher_queue_controller_for_current_thread().unwrap();
-
-        let compositor = Compositor::new().unwrap();
-        let canvas_device = CanvasDevice::get_shared_device().unwrap();
-        let composition_graphics_device =
-            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)
-                .unwrap();
-
-        PanelGlobals {
-            compositor,
-            canvas_device,
-            composition_graphics_device,
-            next_id: Arc::new(Mutex::new(0)),
-        }
+    static ref CONTROLLER: DispatcherQueueController =
+        create_dispatcher_queue_controller_for_current_thread().unwrap();
+    static ref COMPOSITOR: Compositor = {
+        &*CONTROLLER;
+        Compositor::new().unwrap()
     };
+    static ref CANVAS_DEVICE: CanvasDevice = {
+        &*CONTROLLER;
+        CanvasDevice::get_shared_device().unwrap()
+    };
+    static ref COMPOSITION_GRAPHICS_DEVICE: CompositionGraphicsDevice =
+        CanvasComposition::create_composition_graphics_device(&*COMPOSITOR, &*CANVAS_DEVICE)
+            .unwrap();
+    static ref NEXT_ID: Arc<AtomicUsize> = Arc::new(0.into());
 }
 
-pub fn globals() -> &'static PanelGlobals {
-    &PANEL_GLOBALS
+pub fn compositor() -> &'static Compositor {
+    &COMPOSITOR
 }
-
-impl PanelGlobals {
-    pub fn compositor(&self) -> &Compositor {
-        &self.compositor
-    }
-    pub fn canvas_device(&self) -> &CanvasDevice {
-        &self.canvas_device
-    }
-    pub fn composition_graphics_device(&self) -> &CompositionGraphicsDevice {
-        &self.composition_graphics_device
-    }
-    pub fn get_next_id(&self) -> usize {
-        let mut guard = self.next_id.lock().unwrap();
-        let next_id = *guard;
-        *guard += 1;
-        next_id
-    }
+pub fn canvas_device() -> &'static CanvasDevice {
+    &CANVAS_DEVICE
+}
+pub fn composition_graphics_device() -> &'static CompositionGraphicsDevice {
+    &COMPOSITION_GRAPHICS_DEVICE
+}
+pub fn get_next_id() -> usize {
+    NEXT_ID.fetch_add(1, Ordering::SeqCst)
 }
 
 pub trait Handle {
@@ -144,6 +136,7 @@ pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> win
 
 pub struct PanelEventProxy {
     proxy: EventLoopProxy<PanelEvent>,
+    spawner: LocalSpawner,
 }
 
 impl PanelEventProxy {
@@ -164,8 +157,8 @@ pub struct EmptyPanel {
 
 impl EmptyPanel {
     pub fn new() -> windows::Result<Self> {
-        let visual = globals().compositor().create_container_visual()?;
-        let id = globals().get_next_id();
+        let visual = compositor().create_container_visual()?;
+        let id = get_next_id();
         Ok(Self { id, visual })
     }
 }
@@ -239,6 +232,7 @@ pub struct MainWindow {
     root: ContainerVisual,
     _target: DesktopWindowTarget,
     event_loop: Option<EventLoop<PanelEvent>>, // enclosed to Option to extract it from structure before starting event loop
+    pool: Option<LocalPool>,
     proxy: Option<PanelEventProxy>,
     window: Window,
 }
@@ -246,10 +240,12 @@ pub struct MainWindow {
 impl MainWindow {
     pub fn new() -> windows::Result<Self> {
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
+        let pool = LocalPool::new();
         let proxy = PanelEventProxy {
             proxy: event_loop.create_proxy(),
+            spawner: pool.spawner(),
         };
-        let compositor = globals().compositor();
+        let compositor = compositor();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         let target = window.create_window_target(&compositor, false)?;
         let root = compositor.create_container_visual()?;
@@ -267,6 +263,7 @@ impl MainWindow {
             root,
             _target: target,
             event_loop: Some(event_loop),
+            pool: Some(pool),
             proxy: Some(proxy),
             window,
         })
@@ -289,14 +286,14 @@ impl MainWindow {
 
     pub fn run(mut self, mut panel: impl Panel + 'static) -> windows::Result<()> {
         let event_loop = self.event_loop.take().unwrap();
-        let proxy = PanelEventProxy {
-            proxy: event_loop.create_proxy(),
-        };
+        let mut pool = self.pool.take().unwrap();
+        let proxy = self.proxy.take().unwrap();
         self.visual().children()?.insert_at_top(panel.visual())?;
         panel.on_init(&proxy)?;
         event_loop.run(move |mut evt, _, control_flow| {
             // just to allow '?' usage
             let mut run = || -> windows::Result<()> {
+                pool.run_until_stalled();
                 *control_flow = ControlFlow::Wait;
                 match &mut evt {
                     Event::WindowEvent { event, window_id } => match event {

@@ -18,10 +18,7 @@ use bindings::{
     },
 };
 
-use crate::{
-    control::{Control, ControlHandle},
-    main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle},
-};
+use crate::{control::{Control, ControlHandle}, main_window::{Handle, Panel, PanelEventProxy, PanelHandle, canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error}};
 
 #[derive(Copy, Clone)]
 pub struct TextPanelHandle {
@@ -73,8 +70,8 @@ pub struct TextPanel {
 
 impl TextPanel {
     pub fn new(params: TextParams) -> windows::Result<Self> {
-        let id = globals().get_next_id();
-        let visual = globals().compositor().create_sprite_visual()?;
+        let id = get_next_id();
+        let visual = compositor().create_sprite_visual()?;
         Ok(Self {
             id,
             params,
@@ -97,18 +94,16 @@ impl TextPanel {
     fn resize_surface(&mut self) -> windows::Result<()> {
         let size = self.visual.size()?;
         if size.x > 0. && size.y > 0. {
-            let surface = globals()
-                .composition_graphics_device()
-                .create_drawing_surface(
-                    Size {
-                        width: size.x,
-                        height: size.y,
-                    },
-                    DirectXPixelFormat::B8G8R8A8UIntNormalized,
-                    DirectXAlphaMode::Premultiplied,
-                )?;
+            let surface = composition_graphics_device().create_drawing_surface(
+                Size {
+                    width: size.x,
+                    height: size.y,
+                },
+                DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                DirectXAlphaMode::Premultiplied,
+            )?;
 
-            let brush = globals().compositor().create_surface_brush()?;
+            let brush = compositor().create_surface_brush()?;
             brush.set_surface(surface.clone())?;
             self.surface = Some(surface);
             self.visual.set_brush(brush)?;
@@ -127,7 +122,7 @@ impl TextPanel {
             text_format.set_font_size(size.height / self.params.font_scale)?;
             let text: String = self.params.text.clone().into();
             let text_layout = CanvasTextLayout::create(
-                globals().canvas_device(),
+                canvas_device(),
                 text,
                 text_format,
                 size.width,

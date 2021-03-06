@@ -6,7 +6,7 @@ use bindings::windows::{
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     background_panel::BackgroundParamsBuilder,
-    main_window::{globals, EmptyPanel},
+    main_window::{compositor, get_next_id, EmptyPanel},
     ribbon_panel::RibbonPanelHandle,
 };
 use panelgui::{
@@ -45,7 +45,7 @@ struct MainPanel {
 
 impl MainPanel {
     pub fn new() -> windows::Result<Self> {
-        let id = globals().get_next_id();
+        let id = get_next_id();
 
         let background_panel = BackgroundParamsBuilder::default()
             .color(Colors::white()?)
@@ -107,7 +107,7 @@ impl MainPanel {
             .add_panel(horizontal_padding_panel)?
             .create()?;
 
-        let visual = globals().compositor().create_container_visual()?;
+        let visual = compositor().create_container_visual()?;
         visual
             .children()?
             .insert_at_top(root_panel.visual().clone())?;
@@ -144,6 +144,22 @@ impl MainPanel {
             .set_text(score.to_string())?;
         Ok(())
     }
+    /*
+        async fn message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<MessageBoxPanelHandle> {
+            let message_box = MessageBoxParamsBuilder::default()
+                .message("Start new game?")
+                .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
+                .create()?;
+            let cell = RibbonCellParamsBuilder::default()
+                .panel(message_box)
+                .content_ratio(Vector2 { x: 0.9, y: 0.4 })
+                .create()?;
+            self.game_panel_handle
+                .at(&mut self.root_panel)?
+                .push_cell(cell, proxy)?;
+            Ok(())
+        }
+    */
 
     fn open_message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
         let message_box = MessageBoxParamsBuilder::default()
