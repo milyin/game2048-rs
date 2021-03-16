@@ -27,7 +27,7 @@ use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
 use panelgui::main_window::{
     canvas_device, composition_graphics_device, compositor, get_next_id, send_panel_event, Handle,
-    Panel, PanelEventProxy, PanelHandle,
+    Panel, PanelHandle,
 };
 use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 

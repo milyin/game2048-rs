@@ -1,3 +1,4 @@
+use futures::task::{LocalSpawnExt, Spawn};
 use std::any::Any;
 
 use bindings::windows::{
@@ -6,7 +7,7 @@ use bindings::windows::{
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     background_panel::BackgroundParamsBuilder,
-    main_window::{compositor, get_next_id, EmptyPanel},
+    main_window::{compositor, get_next_id, spawner, EmptyPanel},
     ribbon_panel::RibbonPanelHandle,
 };
 use panelgui::{
@@ -15,7 +16,7 @@ use panelgui::{
     main_window::winrt_error,
     main_window::Handle,
     main_window::PanelHandle,
-    main_window::{MainWindow, Panel, PanelEvent, PanelEventProxy},
+    main_window::{MainWindow, Panel, PanelEvent},
     message_box_panel::MessageBoxButton,
     message_box_panel::MessageBoxPanelHandle,
     message_box_panel::MessageBoxParamsBuilder,
@@ -144,22 +145,22 @@ impl MainPanel {
             .set_text(score.to_string())?;
         Ok(())
     }
-    /*
-        async fn message_box_reset(&mut self, proxy: &PanelEventProxy) -> windows::Result<MessageBoxPanelHandle> {
-            let message_box = MessageBoxParamsBuilder::default()
-                .message("Start new game?")
-                .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
-                .create()?;
-            let cell = RibbonCellParamsBuilder::default()
-                .panel(message_box)
-                .content_ratio(Vector2 { x: 0.9, y: 0.4 })
-                .create()?;
-            self.game_panel_handle
-                .at(&mut self.root_panel)?
-                .push_cell(cell, proxy)?;
-            Ok(())
-        }
-    */
+
+    fn show_message_box_reset(&mut self) -> windows::Result<()> {
+        let message_box = MessageBoxParamsBuilder::default()
+            .message("Start new game?")
+            .button_flags(MessageBoxButton::Yes | MessageBoxButton::No)
+            .create()?;
+        let cell = RibbonCellParamsBuilder::default()
+            .panel(message_box)
+            .content_ratio(Vector2 { x: 0.9, y: 0.4 })
+            .create()?;
+        self.game_panel_handle
+            .at(&mut self.root_panel)?
+            .push_cell(cell)?;
+        spawner().spawn_local(async {}).unwrap();
+        Ok(())
+    }
 
     fn open_message_box_reset(&mut self) -> windows::Result<()> {
         let message_box = MessageBoxParamsBuilder::default()
@@ -288,7 +289,8 @@ impl Panel for MainPanel {
         } else if self.reset_button_handle.extract_event(panel_event)
             == Some(ButtonPanelEvent::Pressed)
         {
-            self.open_message_box_reset()?;
+            self.show_message_box_reset();
+        //self.open_message_box_reset()?;
         } else if let Some(h) = self.message_box_reset_handle.as_ref() {
             if let Some(cmd) = h.extract_event(panel_event) {
                 self.close_message_box_reset()?;
@@ -311,8 +313,8 @@ impl Panel for MainPanel {
 }
 
 fn run() -> windows::Result<()> {
-    let mut window = MainWindow::new()?;
-    window.window().set_title("2048");
+    let mut window = MainWindow {};
+    //window.window().set_title("2048");
     let main_panel = MainPanel::new()?;
     window.run(main_panel)
 }

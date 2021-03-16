@@ -12,3 +12,4 @@ model = { path = "model" }
 panelgui = { path = "panelgui" }
 float-ord = "0.2"
 lazy_static = "1.4.0"
+futures = "0.3.13"

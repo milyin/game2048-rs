@@ -6,7 +6,7 @@ use bindings::windows::{
 };
 
 use crate::main_window::{
-    compositor, get_next_id, winrt_error, EmptyPanel, Handle, Panel, PanelEventProxy, PanelHandle,
+    compositor, get_next_id, winrt_error, EmptyPanel, Handle, Panel, PanelHandle,
 };
 
 #[derive(PartialEq, Copy, Clone)]
