@@ -7,7 +7,7 @@ use bindings::windows::{
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     background_panel::BackgroundParamsBuilder,
-    main_window::{compositor, get_next_id, spawner, EmptyPanel},
+    main_window::{compositor, get_next_id, init_window, spawner, EmptyPanel},
     ribbon_panel::RibbonPanelHandle,
 };
 use panelgui::{
@@ -313,6 +313,7 @@ impl Panel for MainPanel {
 }
 
 fn run() -> windows::Result<()> {
+    init_window()?;
     let mut window = MainWindow {};
     //window.window().set_title("2048");
     let main_panel = MainPanel::new()?;

@@ -52,33 +52,52 @@ pub trait Panel {
 
 type RootPanel = crate::ribbon_panel::RibbonPanel;
 
-thread_local! {
-    static EVENT_LOOP: RefCell<Option<EventLoop<PanelEvent>>> = RefCell::new(Some(EventLoop::<PanelEvent>::with_user_event()));
-    static EVENT_LOOP_PROXY: RefCell<EventLoopProxy<PanelEvent>> =
-        EVENT_LOOP.with(|event_loop| RefCell::new(event_loop.borrow().as_ref().unwrap().create_proxy()));
-    static WINDOW: Window = EVENT_LOOP.with(|event_loop| {
-        let window = WindowBuilder::new().build(&event_loop.borrow().as_ref().unwrap()).unwrap();
-        window.set_min_inner_size(Some(PhysicalSize::new(100, 100)));
-        window
-    });
-    static TARGET: DesktopWindowTarget = WINDOW.with(|window| window.create_window_target(&compositor(), false).unwrap());
-    static ROOT_VISUAL: ContainerVisual = WINDOW.with(|window| TARGET.with(|target| {
+struct Globals {
+    event_loop: Option<EventLoop<PanelEvent>>,
+    event_loop_proxy: EventLoopProxy<PanelEvent>,
+    window: Window,
+    _target: DesktopWindowTarget,
+    root_visual: ContainerVisual,
+    root_panel: Option<RootPanel>,
+}
+
+impl Globals {
+    fn new() -> windows::Result<Self> {
+        let event_loop = EventLoop::<PanelEvent>::with_user_event();
+        let event_loop_proxy = event_loop.create_proxy();
+        let window = WindowBuilder::new()
+            .build(&event_loop)
+            .map_err(|e| winrt_error(e.to_string())())?;
+        let event_loop = Some(event_loop);
+        let _target = window.create_window_target(compositor(), false)?;
         let window_size = window.inner_size();
         let window_size = Vector2 {
             x: window_size.width as f32,
             y: window_size.height as f32,
         };
-        let root = compositor().create_container_visual().unwrap();
-        root.set_size(&window_size).unwrap();
-        target.set_root(&root).unwrap();
-        root
-    }));
-    static ROOT_PANEL: RefCell<RootPanel> = ROOT_VISUAL.with(|visual| {
-        let panel = crate::ribbon_panel::RibbonParamsBuilder::default()
-            .orientation(crate::ribbon_panel::RibbonOrientation::Stack).create().unwrap();
-        visual.children().unwrap().insert_at_top(panel.visual()).unwrap();
-        RefCell::new(panel)
-    });
+        let root_visual = compositor().create_container_visual()?;
+        root_visual.set_size(window_size)?;
+        let root_panel = crate::ribbon_panel::RibbonParamsBuilder::default()
+            .orientation(crate::ribbon_panel::RibbonOrientation::Stack)
+            .create()?;
+        root_visual
+            .children()
+            .unwrap()
+            .insert_at_top(root_panel.visual())?;
+        let root_panel = Some(root_panel);
+        Ok(Self {
+            event_loop,
+            event_loop_proxy,
+            window,
+            _target,
+            root_visual,
+            root_panel,
+        })
+    }
+}
+
+thread_local! {
+    static GLOBALS: RefCell<Option<Globals>> = RefCell::new(None);
 }
 
 thread_local! {
@@ -86,10 +105,29 @@ thread_local! {
     static LOCAL_SPAWNER: LocalSpawner = LOCAL_POOL.with(|pool| pool.borrow_mut().spawner());
 }
 
+fn globals_with<F, T>(f: F) -> windows::Result<T>
+where
+    F: FnOnce(&mut Globals) -> windows::Result<T>,
+{
+    GLOBALS.with(|globals| {
+        f(globals
+            .borrow_mut()
+            .as_mut()
+            .ok_or_else(winrt_error("Globals not initialized"))?)
+    })
+}
+
+pub fn init_window() -> windows::Result<()> {
+    GLOBALS.with(|globals| {
+        *globals.borrow_mut() = Some(Globals::new()?);
+        Ok(())
+    })
+}
+
 pub fn send_panel_event<T: Any>(panel_id: usize, command: T) -> windows::Result<()> {
-    EVENT_LOOP_PROXY.with(|proxy| {
-        proxy
-            .borrow()
+    globals_with(|globals| {
+        globals
+            .event_loop_proxy
             .send_event(PanelEvent {
                 panel_id,
                 data: Some(Box::new(command)),
@@ -259,75 +297,76 @@ pub struct MainWindow {}
 
 impl MainWindow {
     pub fn run(self, panel: impl Panel + 'static) -> windows::Result<()> {
-        ROOT_PANEL.with(|root_panel| {
-            let mut root_panel = root_panel.borrow_mut();
-            root_panel.push_cell(
-                crate::ribbon_panel::RibbonCellParamsBuilder::default()
-                    .panel(panel)
-                    .create()?,
-            )?;
-            root_panel.on_init()
-        })?;
-        EVENT_LOOP.with(|event_loop| {
-            event_loop
-                .borrow_mut()
+        let event_loop = globals_with(|globals| {
+            globals
+                .event_loop
                 .take()
-                .unwrap()
-                .run(move |mut evt, _, control_flow| {
-                    // just to allow '?' usage
-                    let mut run = || -> windows::Result<()> {
-                        LOCAL_POOL.with(|pool| pool.borrow_mut().run_until_stalled());
-                        *control_flow = ControlFlow::Wait;
-                        ROOT_PANEL.with(|p| -> windows::Result<()> {
-                            let mut panel = p.borrow_mut();
-                            match &mut evt {
-                                Event::WindowEvent { event, window_id } => match event {
-                                    WindowEvent::Resized(size) => {
-                                        let size = Vector2 {
-                                            x: size.width as f32,
-                                            y: size.height as f32,
-                                        };
-                                        ROOT_VISUAL.with(|root| root.set_size(&size))?;
-                                        panel.on_resize(&size)?;
-                                    }
-                                    WindowEvent::CloseRequested => {
-                                        if *window_id == WINDOW.with(|window| window.id()) {
-                                            *control_flow = ControlFlow::Exit;
-                                            // TODO: notify panels
-                                        }
-                                    }
-                                    WindowEvent::KeyboardInput { input, .. } => {
-                                        let _ = panel.on_keyboard_input(*input)?;
-                                    }
-                                    WindowEvent::CursorMoved { position, .. } => {
-                                        let position = Vector2 {
-                                            x: position.x as f32,
-                                            y: position.y as f32,
-                                        };
-                                        panel.on_mouse_move(&position)?;
-                                    }
-                                    WindowEvent::MouseInput { state, button, .. } => {
-                                        let _ = panel.on_mouse_input(*button, *state)?;
-                                    }
-                                    _ => {}
-                                },
-                                Event::MainEventsCleared => {
-                                    panel.on_idle()?;
-                                }
-                                Event::UserEvent(ref mut panel_event) => {
-                                    panel.on_panel_event(panel_event)?;
-                                }
-                                _ => {}
+                .ok_or_else(winrt_error("Unexpected second run"))
+        })?;
+        let mut root_panel = globals_with(|globals| {
+            globals
+                .root_panel
+                .take()
+                .ok_or_else(winrt_error("Unexpected second run"))
+        })?;
+        let root_visual = globals_with(|globals| Ok(globals.root_visual.clone()))?;
+        root_panel.push_cell(
+            crate::ribbon_panel::RibbonCellParamsBuilder::default()
+                .panel(panel)
+                .create()?,
+        )?;
+        root_panel.on_init()?;
+
+        event_loop.run(move |mut evt, _, control_flow| {
+            // just to allow '?' usage
+            let mut run = || -> windows::Result<()> {
+                LOCAL_POOL.with(|pool| pool.borrow_mut().run_until_stalled());
+                *control_flow = ControlFlow::Wait;
+                match &mut evt {
+                    Event::WindowEvent { event, window_id } => match event {
+                        WindowEvent::Resized(size) => {
+                            let size = Vector2 {
+                                x: size.width as f32,
+                                y: size.height as f32,
+                            };
+                            root_visual.set_size(&size)?;
+                            root_panel.on_resize(&size)?;
+                        }
+                        WindowEvent::CloseRequested => {
+                            if *window_id == globals_with(|globals| Ok(globals.window.id()))? {
+                                *control_flow = ControlFlow::Exit;
+                                // TODO: notify panels
                             }
-                            Ok(())
-                        })?;
-                        Ok(())
-                    };
-                    if let Err(e) = run() {
-                        dbg!(&e);
-                        *control_flow = ControlFlow::Exit;
+                        }
+                        WindowEvent::KeyboardInput { input, .. } => {
+                            let _ = root_panel.on_keyboard_input(*input)?;
+                        }
+                        WindowEvent::CursorMoved { position, .. } => {
+                            let position = Vector2 {
+                                x: position.x as f32,
+                                y: position.y as f32,
+                            };
+                            root_panel.on_mouse_move(&position)?;
+                        }
+                        WindowEvent::MouseInput { state, button, .. } => {
+                            let _ = root_panel.on_mouse_input(*button, *state)?;
+                        }
+                        _ => {}
+                    },
+                    Event::MainEventsCleared => {
+                        root_panel.on_idle()?;
                     }
-                });
-        })
+                    Event::UserEvent(ref mut panel_event) => {
+                        root_panel.on_panel_event(panel_event)?;
+                    }
+                    _ => {}
+                }
+                Ok(())
+            };
+            if let Err(e) = run() {
+                dbg!(&e);
+                *control_flow = ControlFlow::Exit;
+            }
+        });
     }
 }
