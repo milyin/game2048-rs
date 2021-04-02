@@ -56,9 +56,9 @@ struct Globals {
     event_loop: Option<EventLoop<PanelEvent>>,
     event_loop_proxy: EventLoopProxy<PanelEvent>,
     window: Window,
-    _target: DesktopWindowTarget,
     root_visual: ContainerVisual,
     root_panel: Option<RootPanel>,
+    target: Option<DesktopWindowTarget>,
 }
 
 impl Globals {
@@ -69,7 +69,7 @@ impl Globals {
             .build(&event_loop)
             .map_err(|e| winrt_error(e.to_string())())?;
         let event_loop = Some(event_loop);
-        let _target = window.create_window_target(compositor(), false)?;
+        let target = window.create_window_target(compositor(), false)?;
         let window_size = window.inner_size();
         let window_size = Vector2 {
             x: window_size.width as f32,
@@ -84,17 +84,25 @@ impl Globals {
             .children()
             .unwrap()
             .insert_at_top(root_panel.visual())?;
+        target.set_root(&root_visual);
         let root_panel = Some(root_panel);
         Ok(Self {
             event_loop,
             event_loop_proxy,
             window,
-            _target,
+            target: Some(target),
             root_visual,
             root_panel,
         })
     }
 }
+
+impl Drop for Globals {
+    fn drop(&mut self) {
+//        drop(self.target.take())
+    }
+}
+
 
 thread_local! {
     static GLOBALS: RefCell<Option<Globals>> = RefCell::new(None);
@@ -334,8 +342,9 @@ impl MainWindow {
                         }
                         WindowEvent::CloseRequested => {
                             if *window_id == globals_with(|globals| Ok(globals.window.id()))? {
-                                *control_flow = ControlFlow::Exit;
                                 // TODO: notify panels
+                                *control_flow = ControlFlow::Exit;
+                                globals_with(|globals| {drop(globals.target.take()); Ok(())});
                             }
                         }
                         WindowEvent::KeyboardInput { input, .. } => {
@@ -365,6 +374,7 @@ impl MainWindow {
             };
             if let Err(e) = run() {
                 dbg!(&e);
+                globals_with(|globals| {drop(globals.target.take()); Ok(())});
                 *control_flow = ControlFlow::Exit;
             }
         });
