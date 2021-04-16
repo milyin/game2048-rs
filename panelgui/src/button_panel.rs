@@ -12,10 +12,8 @@ use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{
-        compositor, get_next_id, send_panel_event, winrt_error, Handle, Panel, PanelEvent,
-        PanelHandle,
-    },
+    globals::{compositor, get_next_id, send_panel_event, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
     text_panel::TextParamsBuilder,
 };
 

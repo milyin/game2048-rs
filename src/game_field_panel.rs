@@ -1,4 +1,10 @@
 use lazy_static::lazy_static;
+use panelgui::{
+    globals::{
+        canvas_device, composition_graphics_device, compositor, get_next_id, send_panel_event,
+    },
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
+};
 use std::collections::HashMap;
 
 use bindings::{
@@ -25,10 +31,6 @@ use bindings::{
 };
 use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
-use panelgui::main_window::{
-    canvas_device, composition_graphics_device, compositor, get_next_id, send_panel_event, Handle,
-    Panel, PanelHandle,
-};
 use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 lazy_static! {
@@ -190,10 +192,7 @@ impl Panel for GameFieldPanel {
         Ok(())
     }
 
-    fn on_panel_event(
-        &mut self,
-        _panel_event: &mut panelgui::main_window::PanelEvent,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, _panel_event: &mut PanelEvent) -> windows::Result<()> {
         Ok(())
     }
 }

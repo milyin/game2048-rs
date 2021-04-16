@@ -1,4 +1,4 @@
-use futures::task::{LocalSpawnExt, Spawn};
+use futures::task::LocalSpawnExt;
 use std::any::Any;
 
 use bindings::windows::{
@@ -7,16 +7,14 @@ use bindings::windows::{
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     background_panel::BackgroundParamsBuilder,
-    main_window::{compositor, get_next_id, init_window, spawner, EmptyPanel},
+    globals::{compositor, get_next_id, init_window, spawner, winrt_error},
+    main_window::MainWindow,
+    panel::{EmptyPanel, Handle, Panel, PanelEvent, PanelHandle},
     ribbon_panel::RibbonPanelHandle,
 };
 use panelgui::{
     button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
     control::{Control, ControlManager},
-    main_window::winrt_error,
-    main_window::Handle,
-    main_window::PanelHandle,
-    main_window::{MainWindow, Panel, PanelEvent},
     message_box_panel::MessageBoxButton,
     message_box_panel::MessageBoxPanelHandle,
     message_box_panel::MessageBoxParamsBuilder,
@@ -289,7 +287,7 @@ impl Panel for MainPanel {
         } else if self.reset_button_handle.extract_event(panel_event)
             == Some(ButtonPanelEvent::Pressed)
         {
-            self.show_message_box_reset();
+            self.show_message_box_reset()?;
         //self.open_message_box_reset()?;
         } else if let Some(h) = self.message_box_reset_handle.as_ref() {
             if let Some(cmd) = h.extract_event(panel_event) {
@@ -314,7 +312,7 @@ impl Panel for MainPanel {
 
 fn run() -> windows::Result<()> {
     init_window()?;
-    let mut window = MainWindow {};
+    let window = MainWindow {};
     //window.window().set_title("2048");
     let main_panel = MainPanel::new()?;
     window.run(main_panel)

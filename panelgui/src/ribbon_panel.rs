@@ -5,8 +5,9 @@ use bindings::windows::{
     ui::composition::ContainerVisual,
 };
 
-use crate::main_window::{
-    compositor, get_next_id, winrt_error, EmptyPanel, Handle, Panel, PanelHandle,
+use crate::{
+    globals::{compositor, get_next_id, winrt_error},
+    panel::{EmptyPanel, Handle, Panel, PanelEvent, PanelHandle},
 };
 
 #[derive(PartialEq, Copy, Clone)]
@@ -448,10 +449,7 @@ impl Panel for RibbonPanel {
         Ok(())
     }
 
-    fn on_panel_event(
-        &mut self,
-        panel_event: &mut crate::main_window::PanelEvent,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, panel_event: &mut PanelEvent) -> windows::Result<()> {
         for p in &mut self.params.cells {
             p.panel.on_panel_event(panel_event)?;
         }

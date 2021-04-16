@@ -3,15 +3,14 @@ use std::borrow::Cow;
 use enumflags2::BitFlags;
 
 use bindings::windows::ui::{composition::ContainerVisual, Colors};
-use futures::future::ok;
 use winit::event::VirtualKeyCode;
 
 use crate::{
     background_panel::BackgroundParamsBuilder,
     button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
     control::ControlManager,
-    main_window::winrt_error,
-    main_window::{compositor, get_next_id, send_panel_event, Handle, Panel, PanelHandle},
+    globals::{compositor, get_next_id, send_panel_event, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     ribbon_panel::RibbonParamsBuilder,
@@ -203,10 +202,7 @@ impl Panel for MessageBoxPanel {
                 .process_keyboard_input(input, &mut self.root_panel)?)
     }
 
-    fn on_panel_event(
-        &mut self,
-        panel_event: &mut crate::main_window::PanelEvent,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, panel_event: &mut PanelEvent) -> windows::Result<()> {
         self.root_panel.on_panel_event(panel_event)?;
         if self.handle_yes.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
             send_panel_event(self.id, MessageBoxButton::Yes)?;

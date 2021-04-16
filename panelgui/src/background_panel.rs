@@ -10,8 +10,9 @@ use bindings::windows::{
 use float_ord::FloatOrd;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{
-    compositor, get_next_id, winrt_error, Handle, Panel, PanelHandle,
+use crate::{
+    globals::{compositor, get_next_id, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
 };
 
 #[derive(Builder)]
@@ -168,10 +169,7 @@ impl Panel for BackgroundPanel {
         Ok(())
     }
 
-    fn on_panel_event(
-        &mut self,
-        _panel_event: &mut crate::main_window::PanelEvent,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, _panel_event: &mut PanelEvent) -> windows::Result<()> {
         Ok(())
     }
 }

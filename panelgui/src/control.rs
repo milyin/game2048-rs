@@ -1,6 +1,9 @@
 use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
-use crate::main_window::{send_panel_event, Handle, Panel, PanelEvent};
+use crate::{
+    globals::send_panel_event,
+    panel::{Handle, Panel, PanelEvent},
+};
 
 pub enum ControlEvent {
     Enable(bool),

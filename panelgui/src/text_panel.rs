@@ -20,10 +20,8 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{
-        canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error, Handle,
-        Panel, PanelHandle,
-    },
+    globals::{canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
 };
 
 #[derive(Copy, Clone)]
@@ -199,10 +197,7 @@ impl Panel for TextPanel {
         Ok(false)
     }
 
-    fn on_panel_event(
-        &mut self,
-        _panel_event: &mut crate::main_window::PanelEvent,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, _panel_event: &mut PanelEvent) -> windows::Result<()> {
         Ok(())
     }
 }
