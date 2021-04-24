@@ -7,8 +7,7 @@ use bindings::windows::{
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     background_panel::BackgroundParamsBuilder,
-    globals::{compositor, get_next_id, init_window, spawner, winrt_error},
-    main_window::MainWindow,
+    globals::{compositor, get_next_id, init_window, run, spawner, winrt_error},
     panel::{EmptyPanel, Handle, Panel, PanelEvent, PanelHandle},
     ribbon_panel::RibbonPanelHandle,
 };
@@ -310,18 +309,21 @@ impl Panel for MainPanel {
     }
 }
 
-fn run() -> windows::Result<()> {
+fn prepare() -> windows::Result<MainPanel> {
     init_window()?;
-    let window = MainWindow {};
     //window.window().set_title("2048");
     let main_panel = MainPanel::new()?;
-    window.run(main_panel)
+    Ok(main_panel)
 }
 fn main() {
-    let result = run();
+    let main_panel = prepare();
     // We do this for nicer HRESULT printing when errors occur.
-    if let Err(error) = result {
-        dbg!(&error);
-        error.code().unwrap();
+    if main_panel.is_err() {
+        if let Err(error) = main_panel {
+            dbg!(&error);
+            error.code().unwrap();
+        }
+    } else {
+        run(main_panel.unwrap())
     }
 }

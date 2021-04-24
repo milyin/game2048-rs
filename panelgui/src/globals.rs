@@ -19,7 +19,8 @@ use std::{
 };
 use windows::foundation::numerics::Vector2;
 use winit::{
-    event_loop::{EventLoop, EventLoopProxy},
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopProxy},
     window::{Window, WindowBuilder},
 };
 
@@ -32,7 +33,7 @@ use crate::{
 type RootPanel = crate::ribbon_panel::RibbonPanel;
 
 pub struct Globals {
-    pub event_loop: Option<EventLoop<PanelEvent>>,
+    event_loop: Option<EventLoop<PanelEvent>>,
     event_loop_proxy: EventLoopProxy<PanelEvent>,
     pub window: Window,
     pub root_visual: ContainerVisual,
@@ -103,6 +104,18 @@ where
     })
 }
 
+pub fn globals_with_unwrap<F, T>(f: F) -> T
+where
+    F: FnOnce(&mut Globals) -> T,
+{
+    GLOBALS.with(|globals| {
+        f(globals
+            .borrow_mut()
+            .as_mut()
+            .expect("Globals not initialized"))
+    })
+}
+
 pub fn init_window() -> windows::Result<()> {
     GLOBALS.with(|globals| {
         *globals.borrow_mut() = Some(Globals::new()?);
@@ -168,4 +181,84 @@ pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> win
         const E_FAIL: windows::ErrorCode = windows::ErrorCode(0x80004005);
         windows::Error::new(E_FAIL, format!("{}", e).as_str())
     }
+}
+
+pub fn run(panel: impl Panel + 'static) -> ! {
+    let event_loop =
+        globals_with_unwrap(|globals| globals.event_loop.take().expect("Unexpected second run"));
+    let mut root_panel =
+        globals_with_unwrap(|globals| globals.root_panel.take().expect("Unexpected second run"));
+
+    let root_visual = globals_with_unwrap(|globals| globals.root_visual.clone());
+
+    root_panel
+        .push_cell(
+            crate::ribbon_panel::RibbonCellParamsBuilder::default()
+                .panel(panel)
+                .create()
+                .expect("Error:"),
+        )
+        .expect("Error:");
+    root_panel.on_init().expect("Error:");
+
+    event_loop.run(move |mut evt, _, control_flow| {
+        // just to allow '?' usage
+        let mut run = || -> windows::Result<()> {
+            run_until_stalled();
+            *control_flow = ControlFlow::Wait;
+            match &mut evt {
+                Event::WindowEvent { event, window_id } => match event {
+                    WindowEvent::Resized(size) => {
+                        let size = Vector2 {
+                            x: size.width as f32,
+                            y: size.height as f32,
+                        };
+                        root_visual.set_size(&size)?;
+                        root_panel.on_resize(&size)?;
+                    }
+                    WindowEvent::CloseRequested => {
+                        if *window_id == globals_with(|globals| Ok(globals.window.id()))? {
+                            // TODO: notify panels
+                            *control_flow = ControlFlow::Exit;
+                            globals_with(|globals| {
+                                drop(globals.target.take());
+                                Ok(())
+                            })?;
+                        }
+                    }
+                    WindowEvent::KeyboardInput { input, .. } => {
+                        let _ = root_panel.on_keyboard_input(*input)?;
+                    }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        let position = Vector2 {
+                            x: position.x as f32,
+                            y: position.y as f32,
+                        };
+                        root_panel.on_mouse_move(&position)?;
+                    }
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        let _ = root_panel.on_mouse_input(*button, *state)?;
+                    }
+                    _ => {}
+                },
+                Event::MainEventsCleared => {
+                    root_panel.on_idle()?;
+                }
+                Event::UserEvent(ref mut panel_event) => {
+                    root_panel.on_panel_event(panel_event)?;
+                }
+                _ => {}
+            }
+            Ok(())
+        };
+        if let Err(e) = run() {
+            dbg!(&e);
+            globals_with(|globals| {
+                drop(globals.target.take());
+                Ok(())
+            })
+            .unwrap();
+            *control_flow = ControlFlow::Exit;
+        }
+    });
 }
