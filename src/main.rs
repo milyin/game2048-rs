@@ -6,22 +6,11 @@ use bindings::windows::{
 };
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
-    background_panel::BackgroundParamsBuilder,
-    globals::{compositor, get_next_id, init_window, run, spawner, winrt_error},
-    panel::{EmptyPanel, Handle, Panel, PanelEvent, PanelHandle},
-    ribbon_panel::RibbonPanelHandle,
-};
-use panelgui::{
-    button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
-    control::{Control, ControlManager},
-    message_box_panel::MessageBoxButton,
-    message_box_panel::MessageBoxPanelHandle,
-    message_box_panel::MessageBoxParamsBuilder,
-    ribbon_panel::RibbonCellParamsBuilder,
-    ribbon_panel::RibbonOrientation,
-    ribbon_panel::RibbonPanel,
-    ribbon_panel::RibbonParamsBuilder,
-    text_panel::{TextPanelHandle, TextParamsBuilder},
+    compositor, get_next_id, init_window, run, spawner, winrt_error, BackgroundParamsBuilder,
+    ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder, Control, ControlManager, EmptyPanel,
+    Handle, MessageBoxButton, MessageBoxPanelHandle, MessageBoxParamsBuilder, Panel, PanelEvent,
+    PanelHandle, RibbonCellParamsBuilder, RibbonOrientation, RibbonPanel, RibbonPanelHandle,
+    RibbonParamsBuilder, TextPanelHandle, TextParamsBuilder,
 };
 
 mod game_field_panel;

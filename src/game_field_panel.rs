@@ -1,9 +1,7 @@
 use lazy_static::lazy_static;
 use panelgui::{
-    globals::{
-        canvas_device, composition_graphics_device, compositor, get_next_id, send_panel_event,
-    },
-    panel::{Handle, Panel, PanelEvent, PanelHandle},
+    canvas_device, composition_graphics_device, compositor, get_next_id, send_panel_event, Handle,
+    Panel, PanelEvent, PanelHandle,
 };
 use std::collections::HashMap;
 

@@ -2,10 +2,7 @@ use std::any::Any;
 
 use bindings::windows::ui::composition::ContainerVisual;
 use windows::foundation::numerics::Vector2;
-use winit::{
-    event::{ElementState, KeyboardInput, MouseButton},
-    event_loop::EventLoopProxy,
-};
+use winit::event::{ElementState, KeyboardInput, MouseButton};
 
 use crate::globals::{compositor, get_next_id, winrt_error};
 
@@ -57,21 +54,6 @@ pub trait PanelHandle<PanelType: Any, PanelEventType: Any = ()>: Handle {
         } else {
             None
         }
-    }
-}
-
-pub struct PanelEventProxy {
-    proxy: EventLoopProxy<PanelEvent>,
-}
-
-impl PanelEventProxy {
-    pub fn send_panel_event<T: Any>(&self, panel_id: usize, command: T) -> windows::Result<()> {
-        self.proxy
-            .send_event(PanelEvent {
-                panel_id,
-                data: Some(Box::new(command)),
-            })
-            .map_err(|e| winrt_error(e)())
     }
 }
 
