@@ -8,7 +8,6 @@ use bindings::{
     },
 };
 use futures::executor::{LocalPool, LocalSpawner};
-use lazy_static::lazy_static;
 use std::{
     any::Any,
     cell::RefCell,
@@ -33,29 +32,41 @@ use crate::{
 type RootPanel = crate::ribbon_panel::RibbonPanel;
 
 pub struct Globals {
+    _controller: DispatcherQueueController,
+    compositor: Compositor,
+    canvas_device: CanvasDevice,
+    composition_graphics_device: CompositionGraphicsDevice,
+    next_id: Arc<AtomicUsize>,
     event_loop: Option<EventLoop<PanelEvent>>,
     event_loop_proxy: EventLoopProxy<PanelEvent>,
-    pub window: Window,
-    pub root_visual: ContainerVisual,
-    pub root_panel: Option<RootPanel>,
-    pub target: Option<DesktopWindowTarget>,
+    window: Window,
+    root_visual: ContainerVisual,
+    root_panel: Option<RootPanel>,
+    target: Option<DesktopWindowTarget>,
 }
 
 impl Globals {
     fn new() -> windows::Result<Self> {
+        let _controller = create_dispatcher_queue_controller_for_current_thread().unwrap();
+        let compositor = Compositor::new().unwrap();
+        let canvas_device = CanvasDevice::get_shared_device().unwrap();
+        let composition_graphics_device =
+            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)
+                .unwrap();
+        let next_id = Arc::new(0.into());
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
         let event_loop_proxy = event_loop.create_proxy();
         let window = WindowBuilder::new()
             .build(&event_loop)
             .map_err(|e| winrt_error(e.to_string())())?;
         let event_loop = Some(event_loop);
-        let target = window.create_window_target(compositor(), false)?;
+        let target = window.create_window_target(&compositor, false)?;
         let window_size = window.inner_size();
         let window_size = Vector2 {
             x: window_size.width as f32,
             y: window_size.height as f32,
         };
-        let root_visual = compositor().create_container_visual()?;
+        let root_visual = compositor.create_container_visual()?;
         root_visual.set_size(window_size)?;
         let root_panel = crate::ribbon_panel::RibbonParamsBuilder::default()
             .orientation(crate::ribbon_panel::RibbonOrientation::Stack)
@@ -67,6 +78,11 @@ impl Globals {
         target.set_root(&root_visual)?;
         let root_panel = Some(root_panel);
         Ok(Self {
+            _controller,
+            compositor,
+            canvas_device,
+            composition_graphics_device,
+            next_id,
             event_loop,
             event_loop_proxy,
             window,
@@ -74,12 +90,6 @@ impl Globals {
             root_visual,
             root_panel,
         })
-    }
-}
-
-impl Drop for Globals {
-    fn drop(&mut self) {
-        //        drop(self.target.take())
     }
 }
 
@@ -146,34 +156,17 @@ pub fn run_until_stalled() {
 // {
 // }
 
-lazy_static! {
-    static ref CONTROLLER: DispatcherQueueController =
-        create_dispatcher_queue_controller_for_current_thread().unwrap();
-    static ref COMPOSITOR: Compositor = {
-        &*CONTROLLER;
-        Compositor::new().unwrap()
-    };
-    static ref CANVAS_DEVICE: CanvasDevice = {
-        &*CONTROLLER;
-        CanvasDevice::get_shared_device().unwrap()
-    };
-    static ref COMPOSITION_GRAPHICS_DEVICE: CompositionGraphicsDevice =
-        CanvasComposition::create_composition_graphics_device(&*COMPOSITOR, &*CANVAS_DEVICE)
-            .unwrap();
-    static ref NEXT_ID: Arc<AtomicUsize> = Arc::new(0.into());
+pub fn compositor() -> Compositor {
+    globals_with_unwrap(|globals| globals.compositor.clone())
 }
-
-pub fn compositor() -> &'static Compositor {
-    &COMPOSITOR
+pub fn canvas_device() -> CanvasDevice {
+    globals_with_unwrap(|globals| globals.canvas_device.clone())
 }
-pub fn canvas_device() -> &'static CanvasDevice {
-    &CANVAS_DEVICE
-}
-pub fn composition_graphics_device() -> &'static CompositionGraphicsDevice {
-    &COMPOSITION_GRAPHICS_DEVICE
+pub fn composition_graphics_device() -> CompositionGraphicsDevice {
+    globals_with_unwrap(|globals| globals.composition_graphics_device.clone())
 }
 pub fn get_next_id() -> usize {
-    NEXT_ID.fetch_add(1, Ordering::SeqCst)
+    globals_with_unwrap(|globals| globals.next_id.fetch_add(1, Ordering::SeqCst))
 }
 
 pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> windows::Error {
