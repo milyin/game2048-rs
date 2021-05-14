@@ -23,10 +23,13 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::panel::{Panel, PanelEvent};
 use crate::{
     interop::create_dispatcher_queue_controller_for_current_thread,
     window_target::CompositionDesktopWindowTargetSource,
+};
+use crate::{
+    panel::{Panel, PanelEvent},
+    RibbonOrientation, RibbonParamsBuilder,
 };
 
 type RootPanel = crate::ribbon_panel::RibbonPanel;
@@ -43,16 +46,17 @@ pub struct Globals {
     root_visual: ContainerVisual,
     root_panel: Option<RootPanel>,
     target: Option<DesktopWindowTarget>,
+    local_pool: Option<LocalPool>,
+    local_spawner: LocalSpawner,
 }
 
 impl Globals {
     fn new() -> windows::Result<Self> {
-        let _controller = create_dispatcher_queue_controller_for_current_thread().unwrap();
-        let compositor = Compositor::new().unwrap();
-        let canvas_device = CanvasDevice::get_shared_device().unwrap();
+        let _controller = create_dispatcher_queue_controller_for_current_thread()?;
+        let compositor = Compositor::new()?;
+        let canvas_device = CanvasDevice::get_shared_device()?;
         let composition_graphics_device =
-            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)
-                .unwrap();
+            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
         let next_id = Arc::new(0.into());
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
         let event_loop_proxy = event_loop.create_proxy();
@@ -68,15 +72,12 @@ impl Globals {
         };
         let root_visual = compositor.create_container_visual()?;
         root_visual.set_size(window_size)?;
-        let root_panel = crate::ribbon_panel::RibbonParamsBuilder::default()
-            .orientation(crate::ribbon_panel::RibbonOrientation::Stack)
-            .create()?;
-        root_visual
-            .children()
-            .unwrap()
-            .insert_at_top(root_panel.visual())?;
         target.set_root(&root_visual)?;
-        let root_panel = Some(root_panel);
+        let target = Some(target);
+        let root_panel = None;
+        let local_pool = LocalPool::new();
+        let local_spawner = local_pool.spawner();
+        let local_pool = Some(local_pool);
         Ok(Self {
             _controller,
             compositor,
@@ -86,20 +87,17 @@ impl Globals {
             event_loop,
             event_loop_proxy,
             window,
-            target: Some(target),
+            target,
             root_visual,
             root_panel,
+            local_pool,
+            local_spawner,
         })
     }
 }
 
 thread_local! {
     static GLOBALS: RefCell<Option<Globals>> = RefCell::new(None);
-}
-
-thread_local! {
-    static LOCAL_POOL: RefCell<LocalPool> = RefCell::new(LocalPool::new());
-    static LOCAL_SPAWNER: LocalSpawner = LOCAL_POOL.with(|pool| pool.borrow_mut().spawner());
 }
 
 pub fn globals_with<F, T>(f: F) -> windows::Result<T>
@@ -127,8 +125,20 @@ where
 }
 
 pub fn init_window() -> windows::Result<()> {
-    GLOBALS.with(|globals| {
+    GLOBALS.with::<_, windows::Result<()>>(|globals| {
         *globals.borrow_mut() = Some(Globals::new()?);
+        Ok(())
+    })?;
+    let root_panel = RibbonParamsBuilder::default()
+        .orientation(RibbonOrientation::Stack)
+        .create()?;
+    globals_with(|globals| {
+        globals
+            .root_visual
+            .children()
+            .unwrap()
+            .insert_at_top(root_panel.visual())?;
+        globals.root_panel = Some(root_panel);
         Ok(())
     })
 }
@@ -146,14 +156,12 @@ pub fn send_panel_event<T: Any>(panel_id: usize, command: T) -> windows::Result<
 }
 
 pub fn spawner() -> LocalSpawner {
-    LOCAL_SPAWNER.with(|spawner| spawner.clone())
+    globals_with_unwrap(|globals| globals.local_spawner.clone())
 }
 
-pub fn run_until_stalled() {
-    LOCAL_POOL.with(|pool| pool.borrow_mut().run_until_stalled());
-}
 // pub fn spawn(func: impl FnOnce(root: &RefCell<>) -> F) where F: Future<Output = windows::Result<()>>
 // {
+//     spawner().
 // }
 
 pub fn compositor() -> Compositor {
@@ -181,6 +189,8 @@ pub fn run(panel: impl Panel + 'static) -> ! {
         globals_with_unwrap(|globals| globals.event_loop.take().expect("Unexpected second run"));
     let mut root_panel =
         globals_with_unwrap(|globals| globals.root_panel.take().expect("Unexpected second run"));
+    let mut local_pool =
+        globals_with_unwrap(|globals| globals.local_pool.take().expect("Unexpected second run"));
 
     let root_visual = globals_with_unwrap(|globals| globals.root_visual.clone());
 
@@ -197,7 +207,7 @@ pub fn run(panel: impl Panel + 'static) -> ! {
     event_loop.run(move |mut evt, _, control_flow| {
         // just to allow '?' usage
         let mut run = || -> windows::Result<()> {
-            run_until_stalled();
+            local_pool.run_until_stalled();
             *control_flow = ControlFlow::Wait;
             match &mut evt {
                 Event::WindowEvent { event, window_id } => match event {
