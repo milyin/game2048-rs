@@ -1,6 +1,9 @@
 use winit::event::{ElementState, KeyboardInput, VirtualKeyCode};
 
-use crate::main_window::{Handle, Panel, PanelEvent, PanelEventProxy};
+use crate::{
+    globals::send_panel_event,
+    panel::{Handle, Panel, PanelEvent},
+};
 
 pub enum ControlEvent {
     Enable(bool),
@@ -27,20 +30,20 @@ pub trait Control: Panel {
         Ok(())
     }
     fn as_panel(&self) -> &dyn Panel;
-    fn set_focus_to_next(&self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        proxy.send_panel_event(self.id(), ControlEvent::FocusNext)
+    fn set_focus_to_next(&self) -> windows::Result<()> {
+        send_panel_event(self.id(), ControlEvent::FocusNext)
     }
-    fn set_focus_to_prev(&self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        proxy.send_panel_event(self.id(), ControlEvent::FocusPrev)
+    fn set_focus_to_prev(&self) -> windows::Result<()> {
+        send_panel_event(self.id(), ControlEvent::FocusPrev)
     }
-    fn set_focus(&self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        proxy.send_panel_event(self.id(), ControlEvent::FocusSet)
+    fn set_focus(&self) -> windows::Result<()> {
+        send_panel_event(self.id(), ControlEvent::FocusSet)
     }
-    fn clear_focus(&self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        proxy.send_panel_event(self.id(), ControlEvent::FocusClear)
+    fn clear_focus(&self) -> windows::Result<()> {
+        send_panel_event(self.id(), ControlEvent::FocusClear)
     }
-    fn enable(&self, proxy: &PanelEventProxy, enable: bool) -> windows::Result<()> {
-        proxy.send_panel_event(self.id(), ControlEvent::Enable(enable))
+    fn enable(&self, enable: bool) -> windows::Result<()> {
+        send_panel_event(self.id(), ControlEvent::Enable(enable))
     }
 }
 
@@ -68,7 +71,6 @@ impl ControlManager {
         &mut self,
         panel_event: &mut PanelEvent,
         root_panel: &mut dyn Panel,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         for h in &self.controls {
             if h.id() == panel_event.panel_id {
@@ -108,7 +110,6 @@ impl ControlManager {
         &mut self,
         input: KeyboardInput,
         root_panel: &mut dyn Panel,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         // TODO: process Shift-Tab
         if input.state == ElementState::Pressed {

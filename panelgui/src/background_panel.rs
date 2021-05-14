@@ -10,7 +10,10 @@ use bindings::windows::{
 use float_ord::FloatOrd;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
-use crate::main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle};
+use crate::{
+    globals::{compositor, get_next_id, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
+};
 
 #[derive(Builder)]
 #[builder(setter(into))]
@@ -60,9 +63,9 @@ impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 
 impl BackgroundPanel {
     pub fn new(params: BackgroundParams) -> windows::Result<Self> {
-        let id = globals().get_next_id();
-        let visual = globals().compositor().create_container_visual()?;
-        let background_shape = globals().compositor().create_shape_visual()?;
+        let id = get_next_id();
+        let visual = compositor().create_container_visual()?;
+        let background_shape = compositor().create_shape_visual()?;
         visual
             .children()?
             .insert_at_bottom(background_shape.clone())?;
@@ -93,8 +96,8 @@ impl BackgroundPanel {
         Ok(())
     }
     fn create_background_shape(&self) -> windows::Result<CompositionShape> {
-        let container_shape = globals().compositor().create_container_shape()?;
-        let rect_geometry = globals().compositor().create_rounded_rectangle_geometry()?;
+        let container_shape = compositor().create_container_shape()?;
+        let rect_geometry = compositor().create_rounded_rectangle_geometry()?;
         rect_geometry.set_size(self.background_shape.size()?)?;
         if self.params.round_corners {
             let size = rect_geometry.size()?;
@@ -106,12 +109,8 @@ impl BackgroundPanel {
         } else {
             rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
         }
-        let brush = globals()
-            .compositor()
-            .create_color_brush_with_color(self.params.color.clone())?;
-        let rect = globals()
-            .compositor()
-            .create_sprite_shape_with_geometry(rect_geometry)?;
+        let brush = compositor().create_color_brush_with_color(self.params.color.clone())?;
+        let rect = compositor().create_sprite_shape_with_geometry(rect_geometry)?;
         rect.set_fill_brush(brush)?;
         rect.set_offset(Vector2 { x: 0., y: 0. })?;
         container_shape.shapes()?.append(rect)?;
@@ -141,12 +140,12 @@ impl Panel for BackgroundPanel {
         }
     }
 
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual.set_size(size.clone())?;
         self.redraw_background()
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
@@ -154,36 +153,23 @@ impl Panel for BackgroundPanel {
         &mut self,
         _button: MouseButton,
         _state: ElementState,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        _input: KeyboardInput,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, _input: KeyboardInput) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_init(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_init(&mut self) -> windows::Result<()> {
         Ok(())
     }
 
-    fn on_mouse_move(
-        &mut self,
-        _position: &Vector2,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, _position: &Vector2) -> windows::Result<()> {
         Ok(())
     }
 
-    fn on_panel_event(
-        &mut self,
-        _panel_event: &mut crate::main_window::PanelEvent,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, _panel_event: &mut PanelEvent) -> windows::Result<()> {
         Ok(())
     }
 }

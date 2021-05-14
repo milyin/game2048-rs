@@ -9,9 +9,8 @@ use crate::{
     background_panel::BackgroundParamsBuilder,
     button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
     control::ControlManager,
-    main_window::globals,
-    main_window::winrt_error,
-    main_window::{Handle, Panel, PanelHandle},
+    globals::{compositor, get_next_id, send_panel_event, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
     ribbon_panel::RibbonOrientation,
     ribbon_panel::RibbonPanel,
     ribbon_panel::RibbonParamsBuilder,
@@ -23,6 +22,12 @@ pub struct MessageBoxPanelHandle(usize);
 impl Handle for MessageBoxPanelHandle {
     fn id(&self) -> usize {
         self.0
+    }
+}
+
+impl MessageBoxPanelHandle {
+    pub async fn do_modal() -> MessageBoxButton {
+        MessageBoxButton::Cancel
     }
 }
 
@@ -67,7 +72,7 @@ pub struct MessageBoxPanel {
 
 impl MessageBoxPanel {
     pub fn new(params: MessageBoxParams) -> windows::Result<Self> {
-        let id = globals().get_next_id();
+        let id = get_next_id();
         let background = BackgroundParamsBuilder::default()
             .color(Colors::wheat()?)
             .round_corners(true)
@@ -114,7 +119,7 @@ impl MessageBoxPanel {
             .add_panel(ribbon)?
             .create()?;
 
-        let visual = globals().compositor().create_container_visual()?;
+        let visual = compositor().create_container_visual()?;
         visual.children()?.insert_at_top(root_panel.visual())?;
         Ok(Self {
             id,
@@ -153,80 +158,67 @@ impl Panel for MessageBoxPanel {
         }
     }
 
-    fn on_init(&mut self, proxy: &crate::main_window::PanelEventProxy) -> windows::Result<()> {
-        self.root_panel.on_init(proxy)
+    fn on_init(&mut self) -> windows::Result<()> {
+        self.root_panel.on_init()
     }
 
     fn on_resize(
         &mut self,
         size: &bindings::windows::foundation::numerics::Vector2,
-        proxy: &crate::main_window::PanelEventProxy,
     ) -> windows::Result<()> {
         self.visual().set_size(size.clone())?;
-        self.root_panel.on_resize(size, proxy)
+        self.root_panel.on_resize(size)
     }
 
-    fn on_idle(&mut self, proxy: &crate::main_window::PanelEventProxy) -> windows::Result<()> {
-        self.root_panel.on_idle(proxy)
+    fn on_idle(&mut self) -> windows::Result<()> {
+        self.root_panel.on_idle()
     }
 
     fn on_mouse_move(
         &mut self,
         position: &bindings::windows::foundation::numerics::Vector2,
-        proxy: &crate::main_window::PanelEventProxy,
     ) -> windows::Result<()> {
-        self.root_panel.on_mouse_move(position, proxy)
+        self.root_panel.on_mouse_move(position)
     }
 
     fn on_mouse_input(
         &mut self,
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
-        proxy: &crate::main_window::PanelEventProxy,
     ) -> windows::Result<bool> {
-        self.root_panel.on_mouse_input(button, state, proxy)
+        self.root_panel.on_mouse_input(button, state)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        input: winit::event::KeyboardInput,
-        proxy: &crate::main_window::PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, input: winit::event::KeyboardInput) -> windows::Result<bool> {
         if let Some(key) = input.virtual_keycode {
             if key == VirtualKeyCode::Escape {
-                proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
+                send_panel_event(self.id, MessageBoxButton::Cancel)?;
                 return Ok(true);
             }
         }
-        Ok(self.root_panel.on_keyboard_input(input, proxy)?
+        Ok(self.root_panel.on_keyboard_input(input)?
             || self
                 .control_manager
-                .process_keyboard_input(input, &mut self.root_panel, proxy)?)
+                .process_keyboard_input(input, &mut self.root_panel)?)
     }
 
-    fn on_panel_event(
-        &mut self,
-        panel_event: &mut crate::main_window::PanelEvent,
-        proxy: &crate::main_window::PanelEventProxy,
-    ) -> windows::Result<()> {
-        self.root_panel.on_panel_event(panel_event, proxy)?;
+    fn on_panel_event(&mut self, panel_event: &mut PanelEvent) -> windows::Result<()> {
+        self.root_panel.on_panel_event(panel_event)?;
         if self.handle_yes.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::Yes)?;
+            send_panel_event(self.id, MessageBoxButton::Yes)?;
         }
         if self.handle_no.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::No)?;
+            send_panel_event(self.id, MessageBoxButton::No)?;
         }
         if self.handle_cancel.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::Cancel)?;
+            send_panel_event(self.id, MessageBoxButton::Cancel)?;
         }
         if self.handle_ok.extract_event(panel_event) == Some(ButtonPanelEvent::Pressed) {
-            proxy.send_panel_event(self.id, MessageBoxButton::Ok)?;
+            send_panel_event(self.id, MessageBoxButton::Ok)?;
         } else {
-            let _ = self.control_manager.process_panel_event(
-                panel_event,
-                &mut self.root_panel,
-                proxy,
-            )?;
+            let _ = self
+                .control_manager
+                .process_panel_event(panel_event, &mut self.root_panel)?;
         }
         Ok(())
     }

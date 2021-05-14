@@ -20,7 +20,8 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    main_window::{globals, winrt_error, Handle, Panel, PanelEventProxy, PanelHandle},
+    globals::{canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error},
+    panel::{Handle, Panel, PanelEvent, PanelHandle},
 };
 
 #[derive(Copy, Clone)]
@@ -73,8 +74,8 @@ pub struct TextPanel {
 
 impl TextPanel {
     pub fn new(params: TextParams) -> windows::Result<Self> {
-        let id = globals().get_next_id();
-        let visual = globals().compositor().create_sprite_visual()?;
+        let id = get_next_id();
+        let visual = compositor().create_sprite_visual()?;
         Ok(Self {
             id,
             params,
@@ -97,18 +98,16 @@ impl TextPanel {
     fn resize_surface(&mut self) -> windows::Result<()> {
         let size = self.visual.size()?;
         if size.x > 0. && size.y > 0. {
-            let surface = globals()
-                .composition_graphics_device()
-                .create_drawing_surface(
-                    Size {
-                        width: size.x,
-                        height: size.y,
-                    },
-                    DirectXPixelFormat::B8G8R8A8UIntNormalized,
-                    DirectXAlphaMode::Premultiplied,
-                )?;
+            let surface = composition_graphics_device().create_drawing_surface(
+                Size {
+                    width: size.x,
+                    height: size.y,
+                },
+                DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                DirectXAlphaMode::Premultiplied,
+            )?;
 
-            let brush = globals().compositor().create_surface_brush()?;
+            let brush = compositor().create_surface_brush()?;
             brush.set_surface(surface.clone())?;
             self.surface = Some(surface);
             self.visual.set_brush(brush)?;
@@ -127,7 +126,7 @@ impl TextPanel {
             text_format.set_font_size(size.height / self.params.font_scale)?;
             let text: String = self.params.text.clone().into();
             let text_layout = CanvasTextLayout::create(
-                globals().canvas_device(),
+                canvas_device(),
                 text,
                 text_format,
                 size.width,
@@ -156,14 +155,14 @@ impl Panel for TextPanel {
         self.visual.clone().into()
     }
 
-    fn on_resize(&mut self, size: &Vector2, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
         self.visual.set_size(size)?;
         self.resize_surface()?;
         self.redraw_text()?;
         Ok(())
     }
 
-    fn on_idle(&mut self, _proxy: &PanelEventProxy) -> windows::Result<()> {
+    fn on_idle(&mut self) -> windows::Result<()> {
         Ok(())
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -178,15 +177,11 @@ impl Panel for TextPanel {
         }
     }
 
-    fn on_init(&mut self, proxy: &PanelEventProxy) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?, proxy)
+    fn on_init(&mut self) -> windows::Result<()> {
+        self.on_resize(&self.visual().parent()?.size()?)
     }
 
-    fn on_mouse_move(
-        &mut self,
-        _position: &Vector2,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, _position: &Vector2) -> windows::Result<()> {
         Ok(())
     }
 
@@ -194,24 +189,15 @@ impl Panel for TextPanel {
         &mut self,
         _button: winit::event::MouseButton,
         _state: winit::event::ElementState,
-        _proxy: &PanelEventProxy,
     ) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_keyboard_input(
-        &mut self,
-        _input: winit::event::KeyboardInput,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<bool> {
+    fn on_keyboard_input(&mut self, _input: winit::event::KeyboardInput) -> windows::Result<bool> {
         Ok(false)
     }
 
-    fn on_panel_event(
-        &mut self,
-        _panel_event: &mut crate::main_window::PanelEvent,
-        _proxy: &PanelEventProxy,
-    ) -> windows::Result<()> {
+    fn on_panel_event(&mut self, _panel_event: &mut PanelEvent) -> windows::Result<()> {
         Ok(())
     }
 }
