@@ -1,10 +1,10 @@
 use std::{any::Any, borrow::Cow, collections::HashMap};
 
-use bindings::windows::{
-    foundation::numerics::Vector2,
-    ui::{
-        composition::{CompositionShape, ContainerVisual, ShapeVisual},
+use bindings::Windows::{
+    Foundation::Numerics::Vector2,
+    UI::{
         Colors,
+        Composition::{CompositionShape, ContainerVisual, ShapeVisual},
     },
 };
 use float_ord::FloatOrd;
@@ -86,12 +86,12 @@ impl ControlHandle for ButtonPanelHandle {
 impl ButtonPanel {
     pub fn new(params: ButtonParams) -> windows::Result<Self> {
         let handle = ButtonPanelHandle::new();
-        let visual = compositor().create_container_visual()?;
-        let background = compositor().create_shape_visual()?;
-        visual.children()?.insert_at_bottom(background.clone())?;
+        let visual = compositor().CreateContainerVisual()?;
+        let background = compositor().CreateShapeVisual()?;
+        visual.Children()?.InsertAtBottom(background.clone())?;
         visual
-            .children()?
-            .insert_at_top(params.panel.visual().clone())?;
+            .Children()?
+            .InsertAtTop(params.panel.visual().clone())?;
         Ok(Self {
             handle,
             params,
@@ -107,8 +107,8 @@ impl ButtonPanel {
     /*   pub fn set_panel<P: Control + 'static>(&mut self, panel: P) -> windows::Result<()> {
         self.remove_panel()?;
         self.visual
-            .children()?
-            .insert_at_top(panel.visual().clone())?;
+            .Children()?
+            .InsertAtTop(panel.visual().clone())?;
         self.params.panel = Some(Box::new(panel));
         Ok(())
     }*/
@@ -122,7 +122,7 @@ impl ButtonPanel {
         Ok(())
     }
     fn get_shape(&mut self, mode: ButtonMode) -> windows::Result<CompositionShape> {
-        let size = self.background.size()?;
+        let size = self.background.Size()?;
         if let Some((shape_size, shape)) = self.shapes.get(&mode) {
             if *shape_size == size {
                 return Ok(shape.clone());
@@ -133,37 +133,37 @@ impl ButtonPanel {
         Ok(shape)
     }
     fn create_shape(mode: ButtonMode, size: &Vector2) -> windows::Result<CompositionShape> {
-        let container_shape = compositor().create_container_shape()?;
-        let round_rect_geometry = compositor().create_rounded_rectangle_geometry()?;
-        let offset = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
-        round_rect_geometry.set_corner_radius(Vector2 {
-            x: offset,
-            y: offset,
+        let container_shape = compositor().CreateContainerShape()?;
+        let round_rect_geometry = compositor().CreateRoundedRectangleGeometry()?;
+        let offset = std::cmp::min(FloatOrd(size.X), FloatOrd(size.Y)).0 / 20.;
+        round_rect_geometry.SetCornerRadius(Vector2 {
+            X: offset,
+            Y: offset,
         })?;
-        round_rect_geometry.set_size(Vector2 {
-            x: size.x - offset * 2.,
-            y: size.y - offset * 2.,
+        round_rect_geometry.SetSize(Vector2 {
+            X: size.X - offset * 2.,
+            Y: size.Y - offset * 2.,
         })?;
-        round_rect_geometry.set_offset(Vector2 {
-            x: offset,
-            y: offset,
+        round_rect_geometry.SetOffset(Vector2 {
+            X: offset,
+            Y: offset,
         })?;
         let (border_color, border_thickness) = match mode {
             // ButtonMode::Norm => (Colors::black()?, 1.),
             // ButtonMode::Disabled => (Colors::gray()?, 1.),
             // ButtonMode::Focused => (Colors::black()?, 3.),
-            ButtonMode::Norm => (Colors::white()?, 1.),
-            ButtonMode::Disabled => (Colors::white()?, 1.),
-            ButtonMode::Focused => (Colors::black()?, 1.),
+            ButtonMode::Norm => (Colors::White()?, 1.),
+            ButtonMode::Disabled => (Colors::White()?, 1.),
+            ButtonMode::Focused => (Colors::Black()?, 1.),
         };
-        let fill_brush = compositor().create_color_brush_with_color(Colors::white()?)?;
-        let stroke_brush = compositor().create_color_brush_with_color(border_color)?;
-        let rect = compositor().create_sprite_shape_with_geometry(round_rect_geometry)?;
-        rect.set_fill_brush(fill_brush)?;
-        rect.set_stroke_brush(stroke_brush)?;
-        rect.set_stroke_thickness(border_thickness)?;
-        rect.set_offset(Vector2 { x: 0., y: 0. })?;
-        container_shape.shapes()?.append(rect)?;
+        let fill_brush = compositor().CreateColorBrushWithColor(Colors::White()?)?;
+        let stroke_brush = compositor().CreateColorBrushWithColor(border_color)?;
+        let rect = compositor().CreateSpriteShapeWithGeometry(round_rect_geometry)?;
+        rect.SetFillBrush(fill_brush)?;
+        rect.SetStrokeBrush(stroke_brush)?;
+        rect.SetStrokeThickness(border_thickness)?;
+        rect.SetOffset(Vector2 { X: 0., Y: 0. })?;
+        container_shape.Shapes()?.Append(rect)?;
         let shape = container_shape.into();
         Ok(shape)
     }
@@ -179,11 +179,11 @@ impl ButtonPanel {
         }
     }
     fn redraw_background(&mut self) -> windows::Result<()> {
-        self.background.set_size(self.visual.size()?)?;
-        self.background.shapes()?.clear()?;
+        self.background.SetSize(self.visual.Size()?)?;
+        self.background.Shapes()?.Clear()?;
         self.background
-            .shapes()?
-            .append(self.get_shape(self.get_mode())?)?;
+            .Shapes()?
+            .Append(self.get_shape(self.get_mode())?)?;
         Ok(())
     }
 }
@@ -197,7 +197,7 @@ impl Panel for ButtonPanel {
     }
 
     fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
-        self.visual.set_size(self.visual.parent()?.size()?)?;
+        self.visual.SetSize(self.visual.Parent()?.Size()?)?;
         self.redraw_background()?;
         self.panel()?.on_resize(size)
     }

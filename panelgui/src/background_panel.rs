@@ -1,10 +1,10 @@
 use std::any::Any;
 
-use bindings::windows::{
-    foundation::numerics::Vector2,
-    ui::{
-        composition::{CompositionShape, ContainerVisual, ShapeVisual},
+use bindings::Windows::{
+    Foundation::Numerics::Vector2,
+    UI::{
         Color, Colors,
+        Composition::{CompositionShape, ContainerVisual, ShapeVisual},
     },
 };
 use float_ord::FloatOrd;
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Builder)]
 #[builder(setter(into))]
 pub struct BackgroundParams {
-    #[builder(default = "{Colors::white().unwrap()}")]
+    #[builder(default = "{Colors::White().unwrap()}")]
     color: Color,
     #[builder(default = "{false}")]
     round_corners: bool,
@@ -27,7 +27,7 @@ pub struct BackgroundParams {
 impl Default for BackgroundParams {
     fn default() -> Self {
         Self {
-            color: Colors::transparent().unwrap(),
+            color: Colors::Transparent().unwrap(),
             round_corners: false,
         }
     }
@@ -64,11 +64,11 @@ impl PanelHandle<BackgroundPanel> for BackgroundPanelHandle {}
 impl BackgroundPanel {
     pub fn new(params: BackgroundParams) -> windows::Result<Self> {
         let id = get_next_id();
-        let visual = compositor().create_container_visual()?;
-        let background_shape = compositor().create_shape_visual()?;
+        let visual = compositor().CreateContainerVisual()?;
+        let background_shape = compositor().CreateShapeVisual()?;
         visual
-            .children()?
-            .insert_at_bottom(background_shape.clone())?;
+            .Children()?
+            .InsertAtBottom(background_shape.clone())?;
         Ok(Self {
             id,
             params,
@@ -88,32 +88,32 @@ impl BackgroundPanel {
         self.redraw_background()
     }
     fn redraw_background(&mut self) -> windows::Result<()> {
-        self.background_shape.set_size(self.visual.size()?)?;
-        self.background_shape.shapes()?.clear()?;
+        self.background_shape.SetSize(self.visual.Size()?)?;
+        self.background_shape.Shapes()?.Clear()?;
         self.background_shape
-            .shapes()?
-            .append(self.create_background_shape()?)?;
+            .Shapes()?
+            .Append(self.create_background_shape()?)?;
         Ok(())
     }
     fn create_background_shape(&self) -> windows::Result<CompositionShape> {
-        let container_shape = compositor().create_container_shape()?;
-        let rect_geometry = compositor().create_rounded_rectangle_geometry()?;
-        rect_geometry.set_size(self.background_shape.size()?)?;
+        let container_shape = compositor().CreateContainerShape()?;
+        let rect_geometry = compositor().CreateRoundedRectangleGeometry()?;
+        rect_geometry.SetSize(self.background_shape.Size()?)?;
         if self.params.round_corners {
-            let size = rect_geometry.size()?;
-            let radius = std::cmp::min(FloatOrd(size.x), FloatOrd(size.y)).0 / 20.;
-            rect_geometry.set_corner_radius(Vector2 {
-                x: radius,
-                y: radius,
+            let size = rect_geometry.Size()?;
+            let radius = std::cmp::min(FloatOrd(size.X), FloatOrd(size.Y)).0 / 20.;
+            rect_geometry.SetCornerRadius(Vector2 {
+                X: radius,
+                Y: radius,
             })?;
         } else {
-            rect_geometry.set_corner_radius(Vector2 { x: 0., y: 0. })?;
+            rect_geometry.SetCornerRadius(Vector2 { X: 0., Y: 0. })?;
         }
-        let brush = compositor().create_color_brush_with_color(self.params.color.clone())?;
-        let rect = compositor().create_sprite_shape_with_geometry(rect_geometry)?;
-        rect.set_fill_brush(brush)?;
-        rect.set_offset(Vector2 { x: 0., y: 0. })?;
-        container_shape.shapes()?.append(rect)?;
+        let brush = compositor().CreateColorBrushWithColor(self.params.color.clone())?;
+        let rect = compositor().CreateSpriteShapeWithGeometry(rect_geometry)?;
+        rect.SetFillBrush(brush)?;
+        rect.SetOffset(Vector2 { X: 0., Y: 0. })?;
+        container_shape.Shapes()?.Append(rect)?;
         let shape = container_shape.into();
         Ok(shape)
     }
@@ -141,7 +141,7 @@ impl Panel for BackgroundPanel {
     }
 
     fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
-        self.visual.set_size(size.clone())?;
+        self.visual.SetSize(size.clone())?;
         self.redraw_background()
     }
 

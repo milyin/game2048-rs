@@ -1,9 +1,10 @@
+use bindings::Windows::Foundation::Numerics::Vector2;
 use bindings::{
-    microsoft::graphics::canvas::{ui::composition::CanvasComposition, CanvasDevice},
-    windows::{
-        system::DispatcherQueueController,
-        ui::composition::{
-            desktop::DesktopWindowTarget, CompositionGraphicsDevice, Compositor, ContainerVisual,
+    Microsoft::Graphics::Canvas::{CanvasDevice, UI::Composition::CanvasComposition},
+    Windows::{
+        System::DispatcherQueueController,
+        UI::Composition::{
+            CompositionGraphicsDevice, Compositor, ContainerVisual, Desktop::DesktopWindowTarget,
         },
     },
 };
@@ -16,7 +17,7 @@ use std::{
         Arc,
     },
 };
-use windows::foundation::numerics::Vector2;
+use windows::HRESULT;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopProxy},
@@ -54,9 +55,9 @@ impl Globals {
     fn new() -> windows::Result<Self> {
         let _controller = create_dispatcher_queue_controller_for_current_thread()?;
         let compositor = Compositor::new()?;
-        let canvas_device = CanvasDevice::get_shared_device()?;
+        let canvas_device = CanvasDevice::GetSharedDevice()?;
         let composition_graphics_device =
-            CanvasComposition::create_composition_graphics_device(&compositor, &canvas_device)?;
+            CanvasComposition::CreateCompositionGraphicsDevice(&compositor, &canvas_device)?;
         let next_id = Arc::new(0.into());
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
         let event_loop_proxy = event_loop.create_proxy();
@@ -67,12 +68,12 @@ impl Globals {
         let target = window.create_window_target(&compositor, false)?;
         let window_size = window.inner_size();
         let window_size = Vector2 {
-            x: window_size.width as f32,
-            y: window_size.height as f32,
+            X: window_size.width as f32,
+            Y: window_size.height as f32,
         };
-        let root_visual = compositor.create_container_visual()?;
-        root_visual.set_size(window_size)?;
-        target.set_root(&root_visual)?;
+        let root_visual = compositor.CreateContainerVisual()?;
+        root_visual.SetSize(window_size)?;
+        target.SetRoot(&root_visual)?;
         let target = Some(target);
         let root_panel = None;
         let local_pool = LocalPool::new();
@@ -135,9 +136,9 @@ pub fn init_window() -> windows::Result<()> {
     globals_with(|globals| {
         globals
             .root_visual
-            .children()
+            .Children()
             .unwrap()
-            .insert_at_top(root_panel.visual())?;
+            .InsertAtTop(root_panel.visual())?;
         globals.root_panel = Some(root_panel);
         Ok(())
     })
@@ -179,7 +180,7 @@ pub fn get_next_id() -> usize {
 
 pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> windows::Error {
     move || {
-        const E_FAIL: windows::ErrorCode = windows::ErrorCode(0x80004005);
+        const E_FAIL: HRESULT = HRESULT(0x80004005);
         windows::Error::new(E_FAIL, format!("{}", e).as_str())
     }
 }
@@ -213,10 +214,10 @@ pub fn run(panel: impl Panel + 'static) -> ! {
                 Event::WindowEvent { event, window_id } => match event {
                     WindowEvent::Resized(size) => {
                         let size = Vector2 {
-                            x: size.width as f32,
-                            y: size.height as f32,
+                            X: size.width as f32,
+                            Y: size.height as f32,
                         };
-                        root_visual.set_size(&size)?;
+                        root_visual.SetSize(&size)?;
                         root_panel.on_resize(&size)?;
                     }
                     WindowEvent::CloseRequested => {
@@ -234,8 +235,8 @@ pub fn run(panel: impl Panel + 'static) -> ! {
                     }
                     WindowEvent::CursorMoved { position, .. } => {
                         let position = Vector2 {
-                            x: position.x as f32,
-                            y: position.y as f32,
+                            X: position.x as f32,
+                            Y: position.y as f32,
                         };
                         root_panel.on_mouse_move(&position)?;
                     }

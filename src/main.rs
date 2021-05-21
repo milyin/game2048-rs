@@ -1,9 +1,10 @@
+use bindings::Windows::{
+    Foundation::Numerics::Vector2,
+    UI::{Colors, Composition::ContainerVisual},
+};
 use futures::task::LocalSpawnExt;
 use std::any::Any;
 
-use bindings::windows::{
-    foundation::numerics::Vector2, ui::composition::ContainerVisual, ui::Colors,
-};
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
     compositor, get_next_id, init_window, run, spawner, winrt_error, BackgroundParamsBuilder,
@@ -35,7 +36,7 @@ impl MainPanel {
         let id = get_next_id();
 
         let background_panel = BackgroundParamsBuilder::default()
-            .color(Colors::white()?)
+            .color(Colors::White()?)
             .create()?;
         let game_field_panel = GameFieldPanel::new()?;
         let score_panel = TextParamsBuilder::default().create()?;
@@ -94,10 +95,10 @@ impl MainPanel {
             .add_panel(horizontal_padding_panel)?
             .create()?;
 
-        let visual = compositor().create_container_visual()?;
+        let visual = compositor().CreateContainerVisual()?;
         visual
-            .children()?
-            .insert_at_top(root_panel.visual().clone())?;
+            .Children()?
+            .InsertAtTop(root_panel.visual().clone())?;
 
         let mut control_manager = ControlManager::new();
         control_manager.add_control(undo_button_handle.clone());
@@ -139,7 +140,7 @@ impl MainPanel {
             .create()?;
         let cell = RibbonCellParamsBuilder::default()
             .panel(message_box)
-            .content_ratio(Vector2 { x: 0.9, y: 0.4 })
+            .content_ratio(Vector2 { X: 0.9, Y: 0.4 })
             .create()?;
         self.game_panel_handle
             .at(&mut self.root_panel)?
@@ -156,7 +157,7 @@ impl MainPanel {
         self.message_box_reset_handle = Some(message_box.handle());
         let cell = RibbonCellParamsBuilder::default()
             .panel(message_box)
-            .content_ratio(Vector2 { x: 0.9, y: 0.4 })
+            .content_ratio(Vector2 { X: 0.9, Y: 0.4 })
             .create()?;
         self.game_panel_handle
             .at(&mut self.root_panel)?
@@ -197,7 +198,7 @@ impl Panel for MainPanel {
     }
 
     fn on_init(&mut self) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?)?;
+        self.on_resize(&self.visual().Parent()?.Size()?)?;
         self.update_buttons()?;
         self.root_panel.on_init()
     }
@@ -211,7 +212,7 @@ impl Panel for MainPanel {
     }
 
     fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
-        self.visual().set_size(size)?;
+        self.visual().SetSize(size)?;
         self.root_panel.on_resize(size)?;
 
         let mut width_limit = self
@@ -223,15 +224,15 @@ impl Panel for MainPanel {
             .at(&mut self.root_panel)?
             .get_cell_limit(0)?;
 
-        // size.x / size.y > 4/5
-        if 5. * size.x > 4. * size.y {
+        // size.X / size.Y > 4/5
+        if 5. * size.X > 4. * size.Y {
             // x is too large limit width
-            height_limit.set_size(size.y);
-            width_limit.set_size(size.y * 4. / 5.);
+            height_limit.set_size(size.Y);
+            width_limit.set_size(size.Y * 4. / 5.);
         } else {
             // y is too large, limit height
-            height_limit.set_size(size.x * 5. / 4.);
-            width_limit.set_size(size.x);
+            height_limit.set_size(size.X * 5. / 4.);
+            width_limit.set_size(size.X);
         }
         self.horizontal_padding_handle
             .at(&mut self.root_panel)?
@@ -246,10 +247,7 @@ impl Panel for MainPanel {
         self.root_panel.on_idle()
     }
 
-    fn on_mouse_move(
-        &mut self,
-        position: &bindings::windows::foundation::numerics::Vector2,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, position: &Vector2) -> windows::Result<()> {
         self.root_panel.on_mouse_move(position)
     }
 

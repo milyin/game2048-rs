@@ -1,8 +1,8 @@
 use std::any::Any;
 
-use bindings::windows::{
-    foundation::numerics::{Vector2, Vector3},
-    ui::composition::ContainerVisual,
+use bindings::Windows::{
+    Foundation::Numerics::{Vector2, Vector3},
+    UI::Composition::ContainerVisual,
 };
 
 use crate::{
@@ -34,10 +34,10 @@ impl Default for RibbonCell {
 
 impl RibbonCell {
     pub fn new(params: RibbonCellParams) -> windows::Result<Self> {
-        let container = compositor().create_container_visual()?;
+        let container = compositor().CreateContainerVisual()?;
         container
-            .children()?
-            .insert_at_top(params.panel.visual().clone())?;
+            .Children()?
+            .InsertAtTop(params.panel.visual().clone())?;
         Ok(Self {
             panel: params.panel,
             container,
@@ -65,7 +65,7 @@ pub struct RibbonCellParams {
     min_size: f32,
     #[builder(default = "{None}")]
     max_size: Option<f32>,
-    #[builder(default = "{Vector2 { x: 1.0, y: 1.0 }}")]
+    #[builder(default = "{Vector2 { X: 1.0, Y: 1.0 }}")]
     content_ratio: Vector2,
 }
 
@@ -221,9 +221,9 @@ fn adjust_cells(limits: Vec<CellLimit>, mut target: f32) -> Vec<f32> {
 impl RibbonPanel {
     pub fn new(params: RibbonParams) -> windows::Result<Self> {
         let handle = RibbonPanelHandle::new();
-        let visual = compositor().create_container_visual()?;
+        let visual = compositor().CreateContainerVisual()?;
         for p in &params.cells {
-            visual.children()?.insert_at_top(p.container.clone())?;
+            visual.Children()?.InsertAtTop(p.container.clone())?;
         }
         Ok(Self {
             handle,
@@ -240,8 +240,8 @@ impl RibbonPanel {
             return Err(winrt_error("Bad cell index")());
         }
         self.visual
-            .children()?
-            .insert_at_top(cell.container.clone())?;
+            .Children()?
+            .InsertAtTop(cell.container.clone())?;
         self.params.cells.insert(index, cell);
         self.resize_cells()?;
         Ok(())
@@ -270,15 +270,15 @@ impl RibbonPanel {
     }*/
     pub fn push_cell(&mut self, cell: RibbonCell) -> windows::Result<()> {
         self.visual
-            .children()?
-            .insert_at_top(cell.container.clone())?;
+            .Children()?
+            .InsertAtTop(cell.container.clone())?;
         self.params.cells.push(cell);
         self.resize_cells()?;
         Ok(())
     }
     pub fn pop_cell(&mut self) -> windows::Result<RibbonCell> {
         if let Some(cell) = self.params.cells.pop() {
-            self.visual.children()?.remove(&cell.container)?;
+            self.visual.Children()?.Remove(&cell.container)?;
             self.resize_cells()?;
             Ok(cell)
         } else {
@@ -290,17 +290,17 @@ impl RibbonPanel {
         Ok(())
     }
     fn resize_cells(&mut self) -> windows::Result<()> {
-        let size = self.visual.size()?;
+        let size = self.visual.Size()?;
         if self.params.orientation == RibbonOrientation::Stack {
             for cell in &self.params.cells {
                 let content_size = size.clone() * cell.content_ratio.clone();
                 let content_offset = Vector3 {
-                    x: (size.x - content_size.x) / 2.,
-                    y: (size.y - content_size.y) / 2.,
-                    z: 0.,
+                    X: (size.X - content_size.X) / 2.,
+                    Y: (size.Y - content_size.Y) / 2.,
+                    Z: 0.,
                 };
-                cell.container.set_size(&content_size)?;
-                cell.container.set_offset(&content_offset)?;
+                cell.container.SetSize(&content_size)?;
+                cell.container.SetOffset(&content_offset)?;
             }
         } else {
             let limits = self
@@ -310,41 +310,41 @@ impl RibbonPanel {
                 .map(|c| c.limit)
                 .collect::<Vec<_>>();
             let hor = self.params.orientation == RibbonOrientation::Horizontal;
-            let target = if hor { size.x } else { size.y };
+            let target = if hor { size.X } else { size.Y };
             let sizes = adjust_cells(limits, target);
             let mut pos: f32 = 0.;
             for i in 0..self.params.cells.len() {
                 let size = if hor {
                     Vector2 {
-                        x: sizes[i],
-                        y: size.y,
+                        X: sizes[i],
+                        Y: size.Y,
                     }
                 } else {
                     Vector2 {
-                        x: size.x,
-                        y: sizes[i],
+                        X: size.X,
+                        Y: sizes[i],
                     }
                 };
                 let cell = &mut self.params.cells[i];
-                cell.container.set_size(&size)?;
-                cell.container.set_offset(if hor {
+                cell.container.SetSize(&size)?;
+                cell.container.SetOffset(if hor {
                     Vector3 {
-                        x: pos,
-                        y: 0.,
-                        z: 0.,
+                        X: pos,
+                        Y: 0.,
+                        Z: 0.,
                     }
                 } else {
                     Vector3 {
-                        x: 0.,
-                        y: pos,
-                        z: 0.,
+                        X: 0.,
+                        Y: pos,
+                        Z: 0.,
                     }
                 })?;
                 pos += sizes[i];
             }
         }
         for p in &mut self.params.cells {
-            p.panel.on_resize(&p.container.size()?)?;
+            p.panel.on_resize(&p.container.Size()?)?;
         }
         Ok(())
     }
@@ -354,13 +354,13 @@ impl RibbonPanel {
     ) -> windows::Result<Option<(Vector2, &'a mut RibbonCell)>> {
         // Scan in reverse order and exit immediately on topmost cell when in Stack mode
         for p in &mut self.params.cells.iter_mut().rev() {
-            let offset = p.container.offset()?;
-            let size = p.container.size()?;
+            let offset = p.container.Offset()?;
+            let size = p.container.Size()?;
             let position = Vector2 {
-                x: position.x - offset.x,
-                y: position.y - offset.y,
+                X: position.X - offset.X,
+                Y: position.Y - offset.Y,
             };
-            if position.x >= 0. && position.x < size.x && position.y >= 0. && position.y < size.y {
+            if position.X >= 0. && position.X < size.X && position.Y >= 0. && position.Y < size.Y {
                 return Ok(Some((position, p)));
             }
             if self.params.orientation == RibbonOrientation::Stack {
@@ -380,7 +380,7 @@ impl Panel for RibbonPanel {
     }
 
     fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
-        self.visual.set_size(size)?;
+        self.visual.SetSize(size)?;
         self.resize_cells()?;
         Ok(())
     }
@@ -442,7 +442,7 @@ impl Panel for RibbonPanel {
     }
 
     fn on_init(&mut self) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?)?;
+        self.on_resize(&self.visual().Parent()?.Size()?)?;
         for p in &mut self.params.cells {
             p.panel.on_init()?;
         }

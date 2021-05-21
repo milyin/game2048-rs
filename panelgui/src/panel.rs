@@ -1,7 +1,7 @@
 use std::any::Any;
 
-use bindings::windows::ui::composition::ContainerVisual;
-use windows::foundation::numerics::Vector2;
+use bindings::Windows::Foundation::Numerics::Vector2;
+use bindings::Windows::UI::Composition::ContainerVisual;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
 use crate::globals::{compositor, get_next_id, winrt_error};
@@ -64,7 +64,7 @@ pub struct EmptyPanel {
 
 impl EmptyPanel {
     pub fn new() -> windows::Result<Self> {
-        let visual = compositor().create_container_visual()?;
+        let visual = compositor().CreateContainerVisual()?;
         let id = get_next_id();
         Ok(Self { id, visual })
     }

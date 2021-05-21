@@ -1,6 +1,6 @@
-use bindings::windows::ui::composition::{desktop::DesktopWindowTarget, Compositor};
-use bindings::windows::win32::windows_and_messaging::HWND;
-use bindings::windows::win32::winrt::ICompositorDesktopInterop;
+use bindings::Windows::Win32::System::WinRT::ICompositorDesktopInterop;
+use bindings::Windows::Win32::UI::WindowsAndMessaging::HWND;
+use bindings::Windows::UI::Composition::{Compositor, Desktop::DesktopWindowTarget};
 use raw_window_handle::HasRawWindowHandle;
 use windows::Interface;
 
@@ -32,11 +32,7 @@ where
         let mut result = None;
         unsafe {
             compositor_desktop
-                .CreateDesktopWindowTarget(
-                    HWND(window_handle as isize),
-                    is_topmost.into(),
-                    &mut result,
-                )
+                .CreateDesktopWindowTarget(HWND(window_handle as isize), is_topmost, &mut result)
                 .and_some(result)
         }
     }

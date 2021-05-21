@@ -2,7 +2,10 @@ use std::borrow::Cow;
 
 use enumflags2::BitFlags;
 
-use bindings::windows::ui::{composition::ContainerVisual, Colors};
+use bindings::Windows::{
+    Foundation::Numerics::Vector2,
+    UI::{Colors, Composition::ContainerVisual},
+};
 use winit::event::VirtualKeyCode;
 
 use crate::{
@@ -74,7 +77,7 @@ impl MessageBoxPanel {
     pub fn new(params: MessageBoxParams) -> windows::Result<Self> {
         let id = get_next_id();
         let background = BackgroundParamsBuilder::default()
-            .color(Colors::wheat()?)
+            .color(Colors::Wheat()?)
             .round_corners(true)
             .create()?;
         let message_panel = TextParamsBuilder::default()
@@ -119,8 +122,8 @@ impl MessageBoxPanel {
             .add_panel(ribbon)?
             .create()?;
 
-        let visual = compositor().create_container_visual()?;
-        visual.children()?.insert_at_top(root_panel.visual())?;
+        let visual = compositor().CreateContainerVisual()?;
+        visual.Children()?.InsertAtTop(root_panel.visual())?;
         Ok(Self {
             id,
             visual,
@@ -162,11 +165,8 @@ impl Panel for MessageBoxPanel {
         self.root_panel.on_init()
     }
 
-    fn on_resize(
-        &mut self,
-        size: &bindings::windows::foundation::numerics::Vector2,
-    ) -> windows::Result<()> {
-        self.visual().set_size(size.clone())?;
+    fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
+        self.visual().SetSize(size.clone())?;
         self.root_panel.on_resize(size)
     }
 
@@ -174,10 +174,7 @@ impl Panel for MessageBoxPanel {
         self.root_panel.on_idle()
     }
 
-    fn on_mouse_move(
-        &mut self,
-        position: &bindings::windows::foundation::numerics::Vector2,
-    ) -> windows::Result<()> {
+    fn on_mouse_move(&mut self, position: &Vector2) -> windows::Result<()> {
         self.root_panel.on_mouse_move(position)
     }
 
