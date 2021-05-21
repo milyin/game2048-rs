@@ -1,19 +1,19 @@
 use std::borrow::Cow;
 
 use bindings::{
-    microsoft::graphics::canvas::{
-        text::CanvasHorizontalAlignment, text::CanvasTextFormat, text::CanvasTextLayout,
-        text::CanvasVerticalAlignment, ui::composition::CanvasComposition,
+    Microsoft::Graphics::Canvas::{
+        Text::CanvasHorizontalAlignment, Text::CanvasTextFormat, Text::CanvasTextLayout,
+        Text::CanvasVerticalAlignment, UI::Composition::CanvasComposition,
     },
-    windows::{
-        foundation::numerics::Vector2,
-        foundation::Size,
-        graphics::directx::DirectXAlphaMode,
-        graphics::directx::DirectXPixelFormat,
-        ui::composition::CompositionDrawingSurface,
-        ui::{
-            composition::{ContainerVisual, SpriteVisual},
+    Windows::{
+        Foundation::Numerics::Vector2,
+        Foundation::Size,
+        Graphics::DirectX::DirectXAlphaMode,
+        Graphics::DirectX::DirectXPixelFormat,
+        UI::Composition::CompositionDrawingSurface,
+        UI::{
             Color, Colors,
+            Composition::{ContainerVisual, SpriteVisual},
         },
     },
 };
@@ -50,7 +50,7 @@ pub struct TextParams {
     text: Cow<'static, str>,
     #[builder(default = "{true}")]
     enabled: bool,
-    #[builder(default = "{Colors::black().unwrap()}")]
+    #[builder(default = "{Colors::Black().unwrap()}")]
     color: Color,
     #[builder(default = "{2.}")]
     font_scale: f32,
@@ -75,7 +75,7 @@ pub struct TextPanel {
 impl TextPanel {
     pub fn new(params: TextParams) -> windows::Result<Self> {
         let id = get_next_id();
-        let visual = compositor().create_sprite_visual()?;
+        let visual = compositor().CreateSpriteVisual()?;
         Ok(Self {
             id,
             params,
@@ -96,51 +96,51 @@ impl TextPanel {
     }
 
     fn resize_surface(&mut self) -> windows::Result<()> {
-        let size = self.visual.size()?;
-        if size.x > 0. && size.y > 0. {
-            let surface = composition_graphics_device().create_drawing_surface(
+        let size = self.visual.Size()?;
+        if size.X > 0. && size.Y > 0. {
+            let surface = composition_graphics_device().CreateDrawingSurface(
                 Size {
-                    width: size.x,
-                    height: size.y,
+                    Width: size.X,
+                    Height: size.Y,
                 },
                 DirectXPixelFormat::B8G8R8A8UIntNormalized,
                 DirectXAlphaMode::Premultiplied,
             )?;
 
-            let brush = compositor().create_surface_brush()?;
-            brush.set_surface(surface.clone())?;
+            let brush = compositor().CreateSurfaceBrush()?;
+            brush.SetSurface(surface.clone())?;
             self.surface = Some(surface);
-            self.visual.set_brush(brush)?;
+            self.visual.SetBrush(brush)?;
         }
         Ok(())
     }
 
     fn redraw_text(&self) -> windows::Result<()> {
         if let Some(ref surface) = self.surface {
-            let ds = CanvasComposition::create_drawing_session(surface)?;
-            ds.clear(Colors::transparent()?)?;
+            let ds = CanvasComposition::CreateDrawingSession(surface)?;
+            ds.Clear(Colors::Transparent()?)?;
 
-            let size = surface.size()?;
+            let size = surface.Size()?;
             let text_format = CanvasTextFormat::new()?;
-            text_format.set_font_family("Arial")?;
-            text_format.set_font_size(size.height / self.params.font_scale)?;
+            text_format.SetFontFamily("Arial")?;
+            text_format.SetFontSize(size.Height / self.params.font_scale)?;
             let text: String = self.params.text.clone().into();
-            let text_layout = CanvasTextLayout::create(
+            let text_layout = CanvasTextLayout::Create(
                 canvas_device(),
                 text,
                 text_format,
-                size.width,
-                size.height,
+                size.Width,
+                size.Height,
             )?;
-            text_layout.set_vertical_alignment(CanvasVerticalAlignment::Center)?;
-            text_layout.set_horizontal_alignment(CanvasHorizontalAlignment::Center)?;
+            text_layout.SetVerticalAlignment(CanvasVerticalAlignment::Center)?;
+            text_layout.SetHorizontalAlignment(CanvasHorizontalAlignment::Center)?;
             let color = if self.params.enabled {
                 self.params.color.clone()
             } else {
-                Colors::gray()?
+                Colors::Gray()?
             };
 
-            ds.draw_text_layout_at_coords_with_color(text_layout, 0., 0., color)
+            ds.DrawTextLayoutAtCoordsWithColor(text_layout, 0., 0., color)
         } else {
             Ok(())
         }
@@ -156,7 +156,7 @@ impl Panel for TextPanel {
     }
 
     fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
-        self.visual.set_size(size)?;
+        self.visual.SetSize(size)?;
         self.resize_surface()?;
         self.redraw_text()?;
         Ok(())
@@ -178,7 +178,7 @@ impl Panel for TextPanel {
     }
 
     fn on_init(&mut self) -> windows::Result<()> {
-        self.on_resize(&self.visual().parent()?.size()?)
+        self.on_resize(&self.visual().Parent()?.Size()?)
     }
 
     fn on_mouse_move(&mut self, _position: &Vector2) -> windows::Result<()> {

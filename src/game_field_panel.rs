@@ -6,40 +6,41 @@ use panelgui::{
 use std::collections::HashMap;
 
 use bindings::{
-    microsoft::graphics::canvas::text::CanvasHorizontalAlignment,
-    microsoft::graphics::canvas::text::CanvasTextFormat,
-    microsoft::graphics::canvas::text::CanvasTextLayout,
-    microsoft::graphics::canvas::text::CanvasVerticalAlignment,
-    microsoft::graphics::canvas::ui::composition::CanvasComposition,
-    microsoft::graphics::canvas::CanvasDevice,
-    windows::foundation::numerics::Vector2,
-    windows::foundation::numerics::Vector3,
-    windows::foundation::Size,
-    windows::graphics::directx::DirectXAlphaMode,
-    windows::graphics::directx::DirectXPixelFormat,
-    windows::ui::composition::CompositionBorderMode,
-    windows::ui::composition::CompositionGraphicsDevice,
-    windows::ui::composition::CompositionShape,
-    windows::ui::composition::Compositor,
-    windows::ui::composition::ContainerVisual,
-    windows::ui::composition::{ShapeVisual, Visual},
-    windows::ui::Color,
-    windows::ui::ColorHelper,
-    windows::ui::Colors,
+    Microsoft::Graphics::Canvas::{
+        CanvasDevice,
+        Text::{
+            CanvasHorizontalAlignment, CanvasTextFormat, CanvasTextLayout, CanvasVerticalAlignment,
+        },
+        UI::Composition::CanvasComposition,
+    },
+    Windows::{
+        Foundation::{
+            Numerics::{Vector2, Vector3},
+            Size,
+        },
+        Graphics::DirectX::{DirectXAlphaMode, DirectXPixelFormat},
+        UI::{
+            Color, ColorHelper, Colors,
+            Composition::{
+                CompositionBorderMode, CompositionGraphicsDevice, CompositionShape, Compositor,
+                ContainerVisual, ShapeVisual, Visual,
+            },
+        },
+    },
 };
 use float_ord::FloatOrd;
 use model::field::{Field, Origin, Side};
 use winit::event::{ElementState, KeyboardInput, MouseButton, VirtualKeyCode};
 
 lazy_static! {
-    static ref TILE_RECT_SIZE: Vector2 = Vector2 { x: 512., y: 512. };
+    static ref TILE_RECT_SIZE: Vector2 = Vector2 { X: 512., Y: 512. };
     static ref TILE_SIZE: Vector2 = &*TILE_RECT_SIZE / 1.1;
     static ref TILE_CORNER_RADIUS: Vector2 = Vector2 {
-        x: TILE_SIZE.x / 20.,
-        y: TILE_SIZE.y / 20.,
+        X: TILE_SIZE.X / 20.,
+        Y: TILE_SIZE.Y / 20.,
     };
     static ref TILE_OFFSET: Vector2 = (&*TILE_RECT_SIZE - &*TILE_SIZE) / 2.;
-    static ref GAME_BOARD_MARGIN: Vector2 = Vector2 { x: 100.0, y: 100.0 };
+    static ref GAME_BOARD_MARGIN: Vector2 = Vector2 { X: 100.0, Y: 100.0 };
     static ref MIN_DRAG_MOUSE_MOVE: FloatOrd<f32> = FloatOrd(5.);
 }
 
@@ -88,7 +89,7 @@ impl Panel for GameFieldPanel {
         self.root.clone()
     }
     fn on_resize(&mut self, size: &Vector2) -> windows::Result<()> {
-        self.visual().set_size(size.clone())?;
+        self.visual().SetSize(size.clone())?;
         self.scale_game_board()
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -143,16 +144,16 @@ impl Panel for GameFieldPanel {
             self.mouse_pressed_pos = Some(position.clone());
         } else if state == ElementState::Released {
             if let Some(prev_position) = self.mouse_pressed_pos.take() {
-                let mut dx = position.x - prev_position.x;
-                let mut dy = position.y - prev_position.y;
+                let mut dx = position.X - prev_position.X;
+                let mut dy = position.Y - prev_position.Y;
                 let mut dx_abs = FloatOrd(dx.abs());
                 let mut dy_abs = FloatOrd(dy.abs());
                 if dx_abs < *MIN_DRAG_MOUSE_MOVE && dy_abs < *MIN_DRAG_MOUSE_MOVE {
-                    let size = self.visual().size()?;
-                    let cx = size.x / 2.;
-                    let cy = size.y / 2.;
-                    dx = position.x - cx;
-                    dy = position.y - cy;
+                    let size = self.visual().Size()?;
+                    let cx = size.X / 2.;
+                    let cy = size.Y / 2.;
+                    dx = position.X - cx;
+                    dy = position.Y - cy;
                     dx_abs = FloatOrd(dx.abs());
                     dy_abs = FloatOrd(dy.abs());
                 }
@@ -198,23 +199,23 @@ impl Panel for GameFieldPanel {
 impl GameFieldPanel {
     pub fn new() -> windows::Result<Self> {
         let compositor = compositor().clone();
-        let root = compositor.create_sprite_visual()?;
-        root.set_offset(Vector3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
+        let root = compositor.CreateSpriteVisual()?;
+        root.SetOffset(Vector3 {
+            X: 0.0,
+            Y: 0.0,
+            Z: 0.0,
         })?;
 
-        root.set_border_mode(CompositionBorderMode::Hard)?;
+        root.SetBorderMode(CompositionBorderMode::Hard)?;
 
-        let game_board_container = compositor.create_container_visual()?;
-        game_board_container.set_relative_offset_adjustment(Vector3 {
-            x: 0.5,
-            y: 0.5,
-            z: 0.0,
+        let game_board_container = compositor.CreateContainerVisual()?;
+        game_board_container.SetRelativeOffsetAdjustment(Vector3 {
+            X: 0.5,
+            Y: 0.5,
+            Z: 0.0,
         })?;
-        game_board_container.set_anchor_point(Vector2 { x: 0.5, y: 0.5 })?;
-        root.children()?.insert_at_top(&game_board_container)?;
+        game_board_container.SetAnchorPoint(Vector2 { X: 0.5, Y: 0.5 })?;
+        root.Children()?.InsertAtTop(&game_board_container)?;
 
         //#[rustfmt::skip]
         //let array =
@@ -292,66 +293,66 @@ impl GameFieldPanel {
     }
 
     pub fn create_tile_shape(&self, color: Color) -> windows::Result<CompositionShape> {
-        let round_rect_geometry = self.compositor.create_rounded_rectangle_geometry()?;
-        round_rect_geometry.set_corner_radius(&*TILE_CORNER_RADIUS)?;
-        round_rect_geometry.set_size(&*TILE_SIZE)?;
-        let brush = self.compositor.create_color_brush_with_color(color)?;
+        let round_rect_geometry = self.compositor.CreateRoundedRectangleGeometry()?;
+        round_rect_geometry.SetCornerRadius(&*TILE_CORNER_RADIUS)?;
+        round_rect_geometry.SetSize(&*TILE_SIZE)?;
+        let brush = self.compositor.CreateColorBrushWithColor(color)?;
         let round_rect = self
             .compositor
-            .create_sprite_shape_with_geometry(round_rect_geometry)?;
-        round_rect.set_fill_brush(brush)?;
-        round_rect.set_offset(&*TILE_OFFSET)?;
+            .CreateSpriteShapeWithGeometry(round_rect_geometry)?;
+        round_rect.SetFillBrush(brush)?;
+        round_rect.SetOffset(&*TILE_OFFSET)?;
         let shape: CompositionShape = round_rect.into();
         Ok(shape)
     }
 
     pub fn create_background_visual(&self) -> windows::Result<ShapeVisual> {
-        let background_rect_geometry = self.compositor.create_rounded_rectangle_geometry()?;
-        background_rect_geometry.set_corner_radius(&*TILE_CORNER_RADIUS)?;
-        background_rect_geometry.set_size(self.get_board_size())?;
+        let background_rect_geometry = self.compositor.CreateRoundedRectangleGeometry()?;
+        background_rect_geometry.SetCornerRadius(&*TILE_CORNER_RADIUS)?;
+        background_rect_geometry.SetSize(self.get_board_size())?;
         let brush = self
             .compositor
-            .create_color_brush_with_color(Colors::dim_gray()?)?;
+            .CreateColorBrushWithColor(Colors::DimGray()?)?;
         let background_rect = self
             .compositor
-            .create_sprite_shape_with_geometry(background_rect_geometry)?;
-        background_rect.set_fill_brush(brush)?;
-        background_rect.set_offset(Vector2 { x: 0., y: 0. })?;
-        let background = self.compositor.create_shape_visual()?;
-        background.set_size(self.get_board_size())?;
-        background.shapes()?.append(background_rect)?;
+            .CreateSpriteShapeWithGeometry(background_rect_geometry)?;
+        background_rect.SetFillBrush(brush)?;
+        background_rect.SetOffset(Vector2 { X: 0., Y: 0. })?;
+        let background = self.compositor.CreateShapeVisual()?;
+        background.SetSize(self.get_board_size())?;
+        background.Shapes()?.Append(background_rect)?;
         for x in 0..self.field.width() {
             for y in 0..self.field.height() {
-                let shape = self.create_tile_shape(Colors::gray()?)?;
-                let mut offset = shape.offset()?;
-                offset.x += TILE_RECT_SIZE.x * x as f32 + TILE_OFFSET.x;
-                offset.y += TILE_RECT_SIZE.y * y as f32 + TILE_OFFSET.y;
-                shape.set_offset(offset)?;
-                background.shapes()?.append(shape)?;
+                let shape = self.create_tile_shape(Colors::Gray()?)?;
+                let mut offset = shape.Offset()?;
+                offset.X += TILE_RECT_SIZE.X * x as f32 + TILE_OFFSET.X;
+                offset.Y += TILE_RECT_SIZE.Y * y as f32 + TILE_OFFSET.Y;
+                shape.SetOffset(offset)?;
+                background.Shapes()?.Append(shape)?;
             }
         }
         Ok(background)
     }
 
     fn scale_game_board(&mut self) -> windows::Result<()> {
-        let board_size = self.game_board_container.size()?;
+        let board_size = self.game_board_container.Size()?;
         let board_size = board_size + &*GAME_BOARD_MARGIN;
 
-        let window_size = self.root.size()?;
+        let window_size = self.root.Size()?;
 
-        let window_ratio = window_size.x / window_size.y;
-        let board_ratio = board_size.x / board_size.y;
+        let window_ratio = window_size.X / window_size.Y;
+        let board_ratio = board_size.X / board_size.Y;
 
         let scale_factor = if window_ratio > board_ratio {
-            window_size.y / board_size.y
+            window_size.Y / board_size.Y
         } else {
-            window_size.x / board_size.x
+            window_size.X / board_size.X
         };
 
-        self.game_board_container.set_scale(Vector3 {
-            x: scale_factor,
-            y: scale_factor,
-            z: 1.0,
+        self.game_board_container.SetScale(Vector3 {
+            X: scale_factor,
+            Y: scale_factor,
+            Z: 1.0,
         })
     }
 
@@ -371,66 +372,66 @@ impl GameFieldPanel {
         } else {
             let text_string: String = n.to_string();
             let text_format = CanvasTextFormat::new()?;
-            text_format.set_font_family("Arial")?;
-            text_format.set_font_size(Self::get_tile_font_size(n))?;
+            text_format.SetFontFamily("Arial")?;
+            text_format.SetFontSize(Self::get_tile_font_size(n))?;
 
-            let text_layout = CanvasTextLayout::create(
+            let text_layout = CanvasTextLayout::Create(
                 &self.canvas_device,
                 text_string,
                 text_format,
-                TILE_RECT_SIZE.x,
-                TILE_RECT_SIZE.y,
+                TILE_RECT_SIZE.X,
+                TILE_RECT_SIZE.Y,
             )?;
-            text_layout.set_vertical_alignment(CanvasVerticalAlignment::Center)?;
-            text_layout.set_horizontal_alignment(CanvasHorizontalAlignment::Center)?;
+            text_layout.SetVerticalAlignment(CanvasVerticalAlignment::Center)?;
+            text_layout.SetHorizontalAlignment(CanvasHorizontalAlignment::Center)?;
             self.tile_text_layouts.insert(n, text_layout.clone());
             Ok(text_layout)
         }
     }
 
     fn create_tile_visual(&mut self, x: usize, y: usize, n: u32) -> windows::Result<Visual> {
-        let surface = self.composition_graphics_device.create_drawing_surface(
+        let surface = self.composition_graphics_device.CreateDrawingSurface(
             Size {
-                width: TILE_RECT_SIZE.x,
-                height: TILE_RECT_SIZE.y,
+                Width: TILE_RECT_SIZE.X,
+                Height: TILE_RECT_SIZE.Y,
             },
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
             DirectXAlphaMode::Premultiplied,
         )?;
-        let ds = CanvasComposition::create_drawing_session(&surface)?;
-        ds.clear(Colors::transparent()?)?;
+        let ds = CanvasComposition::CreateDrawingSession(&surface)?;
+        ds.Clear(Colors::Transparent()?)?;
 
-        ds.draw_text_layout_at_coords_with_color(
+        ds.DrawTextLayoutAtCoordsWithColor(
             self.get_tile_text_layout(n)?,
             0.,
             0.,
             Self::get_tile_font_color(n)?,
         )?;
 
-        let brush = self.compositor.create_surface_brush()?;
-        brush.set_surface(surface)?;
-        let number = self.compositor.create_sprite_visual()?;
-        number.set_brush(brush)?;
-        number.set_size(&*TILE_RECT_SIZE)?;
+        let brush = self.compositor.CreateSurfaceBrush()?;
+        brush.SetSurface(surface)?;
+        let number = self.compositor.CreateSpriteVisual()?;
+        number.SetBrush(brush)?;
+        number.SetSize(&*TILE_RECT_SIZE)?;
 
-        let tile_box = self.compositor.create_shape_visual()?;
-        tile_box.set_size(&*TILE_RECT_SIZE)?;
+        let tile_box = self.compositor.CreateShapeVisual()?;
+        tile_box.SetSize(&*TILE_RECT_SIZE)?;
         let shape = self.get_tile_shape(n)?;
-        tile_box.shapes()?.append(shape)?;
+        tile_box.Shapes()?.Append(shape)?;
 
-        let tile_visual = self.compositor.create_container_visual()?;
-        tile_visual.set_size(&*TILE_RECT_SIZE)?;
-        tile_visual.children()?.insert_at_top(tile_box)?;
-        tile_visual.children()?.insert_at_top(number)?;
+        let tile_visual = self.compositor.CreateContainerVisual()?;
+        tile_visual.SetSize(&*TILE_RECT_SIZE)?;
+        tile_visual.Children()?.InsertAtTop(tile_box)?;
+        tile_visual.Children()?.InsertAtTop(number)?;
 
-        tile_visual.set_offset(Vector3 {
-            x: TILE_RECT_SIZE.x * x as f32 + TILE_OFFSET.x,
-            y: TILE_RECT_SIZE.y * y as f32 + TILE_OFFSET.y,
-            z: 0.,
+        tile_visual.SetOffset(Vector3 {
+            X: TILE_RECT_SIZE.X * x as f32 + TILE_OFFSET.X,
+            Y: TILE_RECT_SIZE.Y * y as f32 + TILE_OFFSET.Y,
+            Z: 0.,
         })?;
         self.game_board_container
-            .children()?
-            .insert_at_top(&tile_visual)?;
+            .Children()?
+            .InsertAtTop(&tile_visual)?;
         let visual: Visual = tile_visual.into();
         Self::animated_appear_tile(&visual)?;
         Ok(visual)
@@ -441,7 +442,7 @@ impl GameFieldPanel {
             if n == visual_n {
                 Ok(visual)
             } else {
-                self.game_board_container.children()?.remove(visual)?;
+                self.game_board_container.Children()?.Remove(visual)?;
                 self.create_tile_visual(x, y, n)
             }
         } else {
@@ -456,47 +457,47 @@ impl GameFieldPanel {
         x: usize,
         y: usize,
     ) -> windows::Result<()> {
-        let compositor = visual.compositor()?;
-        let animation = compositor.create_vector3_key_frame_animation()?;
+        let compositor = visual.Compositor()?;
+        let animation = compositor.CreateVector3KeyFrameAnimation()?;
         let animate_from = Vector3 {
-            x: TILE_RECT_SIZE.x * from_x as f32 + TILE_OFFSET.x,
-            y: TILE_RECT_SIZE.y * from_y as f32 + TILE_OFFSET.y,
-            z: 0.,
+            X: TILE_RECT_SIZE.X * from_x as f32 + TILE_OFFSET.X,
+            Y: TILE_RECT_SIZE.Y * from_y as f32 + TILE_OFFSET.Y,
+            Z: 0.,
         };
         let animate_to = Vector3 {
-            x: TILE_RECT_SIZE.x * x as f32 + TILE_OFFSET.x,
-            y: TILE_RECT_SIZE.y * y as f32 + TILE_OFFSET.y,
-            z: 0.,
+            X: TILE_RECT_SIZE.X * x as f32 + TILE_OFFSET.X,
+            Y: TILE_RECT_SIZE.Y * y as f32 + TILE_OFFSET.Y,
+            Z: 0.,
         };
-        animation.insert_key_frame(0.0, animate_from)?;
-        animation.insert_key_frame(1.0, animate_to)?;
-        visual.start_animation("Offset", animation)?;
+        animation.InsertKeyFrame(0.0, animate_from)?;
+        animation.InsertKeyFrame(1.0, animate_to)?;
+        visual.StartAnimation("Offset", animation)?;
         Ok(())
     }
 
     fn animated_appear_tile(visual: &Visual) -> windows::Result<()> {
-        let compositor = visual.compositor()?;
+        let compositor = visual.Compositor()?;
 
-        let animation = compositor.create_vector3_key_frame_animation()?;
+        let animation = compositor.CreateVector3KeyFrameAnimation()?;
         let animate_from = Vector3 {
-            x: 0.,
-            y: 0.,
-            z: 0.,
+            X: 0.,
+            Y: 0.,
+            Z: 0.,
         };
         let animate_to = Vector3 {
-            x: 1.,
-            y: 1.,
-            z: 0.,
+            X: 1.,
+            Y: 1.,
+            Z: 0.,
         };
-        animation.insert_key_frame(0.0, animate_from)?;
-        animation.insert_key_frame(1.0, animate_to)?;
-        let size = visual.size()?;
-        visual.set_center_point(Vector3 {
-            x: size.x / 2.,
-            y: size.y / 2.,
-            z: 0.,
+        animation.InsertKeyFrame(0.0, animate_from)?;
+        animation.InsertKeyFrame(1.0, animate_to)?;
+        let size = visual.Size()?;
+        visual.SetCenterPoint(Vector3 {
+            X: size.X / 2.,
+            Y: size.Y / 2.,
+            Z: 0.,
         })?;
-        visual.start_animation("Scale", animation)?;
+        visual.StartAnimation("Scale", animation)?;
         Ok(())
     }
 
@@ -551,24 +552,24 @@ impl GameFieldPanel {
 
     fn garbage_collect_tiles(&mut self) -> windows::Result<()> {
         while let Some(tile) = self.removed_tiles.pop() {
-            self.game_board_container.children()?.remove(tile)?;
+            self.game_board_container.Children()?.Remove(tile)?;
         }
         Ok(())
     }
 
     fn get_board_size(&self) -> Vector2 {
         Vector2 {
-            x: self.field.width() as f32 * TILE_RECT_SIZE.x,
-            y: self.field.height() as f32 * TILE_RECT_SIZE.y,
+            X: self.field.width() as f32 * TILE_RECT_SIZE.X,
+            Y: self.field.height() as f32 * TILE_RECT_SIZE.Y,
         } + &*TILE_OFFSET * 2.
     }
 
     fn init_board(&mut self) -> windows::Result<()> {
-        self.game_board_container.set_size(self.get_board_size())?;
-        self.game_board_container.children()?.remove_all()?;
+        self.game_board_container.SetSize(self.get_board_size())?;
+        self.game_board_container.Children()?.RemoveAll()?;
         self.game_board_container
-            .children()?
-            .insert_at_bottom(self.create_background_visual()?)?;
+            .Children()?
+            .InsertAtBottom(self.create_background_visual()?)?;
         self.scale_game_board()?;
         self.animate_board()
     }
@@ -605,7 +606,7 @@ impl GameFieldPanel {
             }
         }
         for (tile, _) in self.game_board_tiles.values() {
-            self.game_board_container.children()?.remove(tile)?;
+            self.game_board_container.Children()?.Remove(tile)?;
         }
         self.game_board_tiles = new_board_tiles;
         Ok(())
@@ -613,27 +614,27 @@ impl GameFieldPanel {
 
     fn get_tile_color(n: u32) -> windows::Result<Color> {
         match n {
-            1 => Colors::gray(),
-            2 => ColorHelper::from_argb(255, 238, 228, 218),
-            4 => ColorHelper::from_argb(255, 237, 224, 200),
-            8 => ColorHelper::from_argb(255, 242, 177, 121),
-            16 => ColorHelper::from_argb(255, 242, 177, 121),
-            32 => ColorHelper::from_argb(255, 246, 124, 95),
-            64 => ColorHelper::from_argb(255, 246, 124, 95),
-            128 => ColorHelper::from_argb(255, 237, 207, 114),
-            256 => ColorHelper::from_argb(255, 237, 207, 97),
-            512 => ColorHelper::from_argb(255, 237, 200, 80),
-            1024 => ColorHelper::from_argb(255, 237, 197, 63),
-            2048 => ColorHelper::from_argb(255, 237, 194, 46),
-            _ => ColorHelper::from_argb(255, 60, 58, 60),
+            1 => Colors::Gray(),
+            2 => ColorHelper::FromArgb(255, 238, 228, 218),
+            4 => ColorHelper::FromArgb(255, 237, 224, 200),
+            8 => ColorHelper::FromArgb(255, 242, 177, 121),
+            16 => ColorHelper::FromArgb(255, 242, 177, 121),
+            32 => ColorHelper::FromArgb(255, 246, 124, 95),
+            64 => ColorHelper::FromArgb(255, 246, 124, 95),
+            128 => ColorHelper::FromArgb(255, 237, 207, 114),
+            256 => ColorHelper::FromArgb(255, 237, 207, 97),
+            512 => ColorHelper::FromArgb(255, 237, 200, 80),
+            1024 => ColorHelper::FromArgb(255, 237, 197, 63),
+            2048 => ColorHelper::FromArgb(255, 237, 194, 46),
+            _ => ColorHelper::FromArgb(255, 60, 58, 60),
         }
     }
 
     fn get_tile_font_color(n: u32) -> windows::Result<Color> {
         if n < 8 {
-            Colors::dim_gray()
+            Colors::DimGray()
         } else {
-            Colors::white_smoke()
+            Colors::WhiteSmoke()
         }
     }
 

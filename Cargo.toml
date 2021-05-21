@@ -6,10 +6,10 @@ edition = "2018"
 
 [dependencies]
 winit = "0.24.0"
-windows = "0.3.1"
+windows = "0.10.0"
 bindings = { path = "bindings" }
 model = { path = "model" }
 panelgui = { path = "panelgui" }
-float-ord = "0.2"
+float-ord = "0.3.1"
 lazy_static = "1.4.0"
 futures = "0.3.13"
