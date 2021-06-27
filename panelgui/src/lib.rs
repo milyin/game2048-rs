@@ -14,8 +14,8 @@ mod text_panel;
 mod window_target;
 
 pub use globals::{
-    canvas_device, composition_graphics_device, compositor, get_next_id, init_window, run,
-    send_panel_event, spawner, winrt_error,
+    canvas_device, composition_graphics_device, compositor, expect_panel_event, get_next_id,
+    init_window, run, send_panel_event, spawn, spawner, winrt_error,
 };
 
 pub use panel::{EmptyPanel, Handle, Panel, PanelEvent, PanelHandle};

@@ -9,6 +9,11 @@ use bindings::{
     },
 };
 use futures::executor::{LocalPool, LocalSpawner};
+use futures::task::LocalSpawn;
+use futures::Future;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{
     any::Any,
     cell::RefCell,
@@ -26,7 +31,7 @@ use winit::{
 
 use crate::{
     interop::create_dispatcher_queue_controller_for_current_thread,
-    window_target::CompositionDesktopWindowTargetSource,
+    window_target::CompositionDesktopWindowTargetSource, PanelHandle,
 };
 use crate::{
     panel::{Panel, PanelEvent},
@@ -49,6 +54,7 @@ pub struct Globals {
     target: Option<DesktopWindowTarget>,
     local_pool: Option<LocalPool>,
     local_spawner: LocalSpawner,
+    last_panel_event: Option<PanelEvent>,
 }
 
 impl Globals {
@@ -93,6 +99,7 @@ impl Globals {
             root_panel,
             local_pool,
             local_spawner,
+            last_panel_event: None,
         })
     }
 }
@@ -160,10 +167,78 @@ pub fn spawner() -> LocalSpawner {
     globals_with_unwrap(|globals| globals.local_spawner.clone())
 }
 
-// pub fn spawn(func: impl FnOnce(root: &RefCell<>) -> F) where F: Future<Output = windows::Result<()>>
-// {
-//     spawner().
-// }
+pub fn extract_last_event<
+    PanelType: Any,
+    PanelEventType: Any,
+    Handle: PanelHandle<PanelType, PanelEventType>,
+>(
+    handle: &Handle,
+) -> Option<PanelEventType> {
+    globals_with_unwrap(|globals| {
+        if let Some(event) = globals.last_panel_event.as_mut() {
+            handle.extract_event(event)
+        } else {
+            None
+        }
+    })
+}
+pub struct ExpectPanelEvent<
+    PanelType: Any,
+    PanelEventType: Any,
+    Handle: PanelHandle<PanelType, PanelEventType>,
+> {
+    pub handle: Handle,
+    _phantom_panel: PhantomData<PanelType>,
+    _phantom_panel_event: PhantomData<PanelEventType>,
+}
+
+impl<PanelType: Any, PanelEventType: Any, Handle: PanelHandle<PanelType, PanelEventType>>
+    ExpectPanelEvent<PanelType, PanelEventType, Handle>
+{
+    fn new(handle: Handle) -> Self {
+        Self {
+            handle,
+            _phantom_panel: PhantomData,
+            _phantom_panel_event: PhantomData,
+        }
+    }
+}
+
+impl<PanelType: Any, PanelEventType: Any, Handle: PanelHandle<PanelType, PanelEventType>> Future
+    for ExpectPanelEvent<PanelType, PanelEventType, Handle>
+{
+    type Output = PanelEventType;
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(event) = extract_last_event(&self.handle) {
+            Poll::Ready(event)
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+pub fn expect_panel_event<PanelType: Any, PanelEventType: Any>(
+    handle: impl PanelHandle<PanelType, PanelEventType>,
+) -> impl Future<Output = PanelEventType> {
+    ExpectPanelEvent::new(handle)
+}
+
+async fn log_result<F>(func: impl FnOnce() -> F + 'static)
+where
+    F: Future<Output = windows::Result<()>> + 'static,
+{
+    let _res = func().await;
+    // TODO: do something with res
+}
+
+pub fn spawn<F>(func: impl FnOnce() -> F + 'static)
+where
+    F: Future<Output = windows::Result<()>> + 'static,
+{
+    let f = Box::new(log_result(func));
+    spawner().spawn_local_obj(f.into()).unwrap();
+}
 
 pub fn compositor() -> Compositor {
     globals_with_unwrap(|globals| globals.compositor.clone())
