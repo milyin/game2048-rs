@@ -29,6 +29,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+use crate::RibbonPanel;
 use crate::{
     interop::create_dispatcher_queue_controller_for_current_thread,
     window_target::CompositionDesktopWindowTargetSource, PanelHandle,
@@ -37,8 +38,6 @@ use crate::{
     panel::{Panel, PanelEvent},
     RibbonOrientation, RibbonParamsBuilder,
 };
-
-type RootPanel = crate::ribbon_panel::RibbonPanel;
 
 pub struct Globals {
     _controller: DispatcherQueueController,
@@ -50,7 +49,6 @@ pub struct Globals {
     event_loop_proxy: EventLoopProxy<PanelEvent>,
     window: Window,
     root_visual: ContainerVisual,
-    root_panel: Option<RootPanel>,
     target: Option<DesktopWindowTarget>,
     local_pool: Option<LocalPool>,
     local_spawner: LocalSpawner,
@@ -81,7 +79,6 @@ impl Globals {
         root_visual.SetSize(window_size)?;
         target.SetRoot(&root_visual)?;
         let target = Some(target);
-        let root_panel = None;
         let local_pool = LocalPool::new();
         let local_spawner = local_pool.spawner();
         let local_pool = Some(local_pool);
@@ -96,7 +93,6 @@ impl Globals {
             window,
             target,
             root_visual,
-            root_panel,
             local_pool,
             local_spawner,
             last_panel_event: None,
@@ -106,6 +102,7 @@ impl Globals {
 
 thread_local! {
     static GLOBALS: RefCell<Option<Globals>> = RefCell::new(None);
+    static ROOT_PANEL: RefCell<Option<RibbonPanel>> = RefCell::new(None);
 }
 
 pub fn globals_with<F, T>(f: F) -> windows::Result<T>
@@ -132,6 +129,17 @@ where
     })
 }
 
+pub fn root_panel_with<F, T>(f: F) -> windows::Result<T>
+where
+    F: FnOnce(&mut RibbonPanel) -> windows::Result<T>,
+{
+    ROOT_PANEL.with(|panel| {
+        f(panel
+            .borrow_mut()
+            .as_mut()
+            .ok_or_else(winrt_error("Root panel not initialized"))?)
+    })
+}
 pub fn init_window() -> windows::Result<()> {
     GLOBALS.with::<_, windows::Result<()>>(|globals| {
         *globals.borrow_mut() = Some(Globals::new()?);
@@ -146,7 +154,10 @@ pub fn init_window() -> windows::Result<()> {
             .Children()
             .unwrap()
             .InsertAtTop(root_panel.visual())?;
-        globals.root_panel = Some(root_panel);
+        Ok(())
+    })?;
+    ROOT_PANEL.with::<_, windows::Result<()>>(|root_panel_g| {
+        *root_panel_g.borrow_mut() = Some(root_panel);
         Ok(())
     })
 }
@@ -224,19 +235,19 @@ pub fn expect_panel_event<PanelType: Any, PanelEventType: Any>(
     ExpectPanelEvent::new(handle)
 }
 
-async fn log_result<F>(func: impl FnOnce() -> F + 'static)
+async fn log_result<F>(f: F)
 where
     F: Future<Output = windows::Result<()>> + 'static,
 {
-    let _res = func().await;
+    let _res = f.await;
     // TODO: do something with res
 }
 
-pub fn spawn<F>(func: impl FnOnce() -> F + 'static)
+pub fn spawn<F>(f: F)
 where
     F: Future<Output = windows::Result<()>> + 'static,
 {
-    let f = Box::new(log_result(func));
+    let f = Box::new(log_result(f));
     spawner().spawn_local_obj(f.into()).unwrap();
 }
 
@@ -263,29 +274,27 @@ pub fn winrt_error<T: std::fmt::Display + 'static>(e: T) -> impl FnOnce() -> win
 pub fn run(panel: impl Panel + 'static) -> ! {
     let event_loop =
         globals_with_unwrap(|globals| globals.event_loop.take().expect("Unexpected second run"));
-    let mut root_panel =
-        globals_with_unwrap(|globals| globals.root_panel.take().expect("Unexpected second run"));
     let mut local_pool =
         globals_with_unwrap(|globals| globals.local_pool.take().expect("Unexpected second run"));
 
     let root_visual = globals_with_unwrap(|globals| globals.root_visual.clone());
 
-    root_panel
-        .push_cell(
+    root_panel_with(|root_panel| {
+        root_panel.push_cell(
             crate::ribbon_panel::RibbonCellParamsBuilder::default()
                 .panel(panel)
-                .create()
-                .expect("Error:"),
-        )
-        .expect("Error:");
-    root_panel.on_init().expect("Error:");
+                .create()?,
+        )?;
+        root_panel.on_init()
+    })
+    .expect("Error: ");
 
     event_loop.run(move |mut evt, _, control_flow| {
         // just to allow '?' usage
         let mut run = || -> windows::Result<()> {
             local_pool.run_until_stalled();
             *control_flow = ControlFlow::Wait;
-            match &mut evt {
+            root_panel_with(|root_panel| match &mut evt {
                 Event::WindowEvent { event, window_id } => match event {
                     WindowEvent::Resized(size) => {
                         let size = Vector2 {
@@ -293,7 +302,7 @@ pub fn run(panel: impl Panel + 'static) -> ! {
                             Y: size.height as f32,
                         };
                         root_visual.SetSize(&size)?;
-                        root_panel.on_resize(&size)?;
+                        root_panel.on_resize(&size)
                     }
                     WindowEvent::CloseRequested => {
                         if *window_id == globals_with(|globals| Ok(globals.window.id()))? {
@@ -302,33 +311,32 @@ pub fn run(panel: impl Panel + 'static) -> ! {
                             globals_with(|globals| {
                                 drop(globals.target.take());
                                 Ok(())
-                            })?;
+                            })
+                        } else {
+                            Ok(())
                         }
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
                         let _ = root_panel.on_keyboard_input(*input)?;
+                        Ok(())
                     }
                     WindowEvent::CursorMoved { position, .. } => {
                         let position = Vector2 {
                             X: position.x as f32,
                             Y: position.y as f32,
                         };
-                        root_panel.on_mouse_move(&position)?;
+                        root_panel.on_mouse_move(&position)
                     }
                     WindowEvent::MouseInput { state, button, .. } => {
                         let _ = root_panel.on_mouse_input(*button, *state)?;
+                        Ok(())
                     }
-                    _ => {}
+                    _ => Ok(()),
                 },
-                Event::MainEventsCleared => {
-                    root_panel.on_idle()?;
-                }
-                Event::UserEvent(ref mut panel_event) => {
-                    root_panel.on_panel_event(panel_event)?;
-                }
-                _ => {}
-            }
-            Ok(())
+                Event::MainEventsCleared => root_panel.on_idle(),
+                Event::UserEvent(ref mut panel_event) => root_panel.on_panel_event(panel_event),
+                _ => Ok(()),
+            })
         };
         if let Err(e) = run() {
             dbg!(&e);

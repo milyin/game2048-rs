@@ -7,11 +7,12 @@ use std::any::Any;
 
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
-    compositor, get_next_id, init_window, run, spawner, winrt_error, BackgroundParamsBuilder,
-    ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder, Control, ControlManager, EmptyPanel,
-    Handle, MessageBoxButton, MessageBoxPanelHandle, MessageBoxParamsBuilder, Panel, PanelEvent,
-    PanelHandle, RibbonCellParamsBuilder, RibbonOrientation, RibbonPanel, RibbonPanelHandle,
-    RibbonParamsBuilder, TextPanelHandle, TextParamsBuilder,
+    compositor, get_next_id, init_window, run, send_panel_event, spawn, spawner, winrt_error,
+    BackgroundParamsBuilder, ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder, Control,
+    ControlManager, EmptyPanel, Handle, MessageBoxButton, MessageBoxPanelHandle,
+    MessageBoxParamsBuilder, Panel, PanelEvent, PanelHandle, RibbonCellParamsBuilder,
+    RibbonOrientation, RibbonPanel, RibbonPanelHandle, RibbonParamsBuilder, TextPanelHandle,
+    TextParamsBuilder,
 };
 
 mod game_field_panel;
@@ -119,6 +120,13 @@ impl MainPanel {
             message_box_reset_handle: None,
         })
     }
+
+    // fn run_blink(&self) {
+    //     spawn(async {
+    //         send_panel_event(self.score_handle.id(), command)
+    //         Ok(())
+    //     })
+    // }
 
     fn update_buttons(&mut self) -> windows::Result<()> {
         let game_field = self.game_field_handle.at(&mut self.root_panel)?;
@@ -300,6 +308,7 @@ fn prepare() -> windows::Result<MainPanel> {
     init_window()?;
     //window.window().set_title("2048");
     let main_panel = MainPanel::new()?;
+    // main_panel.run_blink();
     Ok(main_panel)
 }
 fn main() {

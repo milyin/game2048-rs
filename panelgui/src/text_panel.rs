@@ -29,6 +29,13 @@ pub struct TextPanelHandle {
     id: usize,
 }
 
+impl TextPanelHandle {
+    // pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> windows::Result<()> {
+    //     globals_with(|g| { self.at(g) })
+    // }
+}
+
+
 impl Handle for TextPanelHandle {
     fn id(&self) -> usize {
         self.id
