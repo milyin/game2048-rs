@@ -20,7 +20,10 @@ use bindings::{
 
 use crate::{
     control::{Control, ControlHandle},
-    globals::{canvas_device, composition_graphics_device, compositor, get_next_id, winrt_error},
+    globals::{
+        canvas_device, composition_graphics_device, compositor, get_next_id, root_panel_with,
+        winrt_error,
+    },
     panel::{Handle, Panel, PanelEvent, PanelHandle},
 };
 
@@ -30,11 +33,17 @@ pub struct TextPanelHandle {
 }
 
 impl TextPanelHandle {
-    // pub fn set_text<S: Into<Cow<'static, str>>>(&mut self, text: S) -> windows::Result<()> {
-    //     globals_with(|g| { self.at(g) })
-    // }
+    pub fn set_text_at<S: Into<Cow<'static, str>>>(
+        &self,
+        owner: &mut dyn Panel,
+        text: S,
+    ) -> windows::Result<()> {
+        self.at(owner)?.set_text(text)
+    }
+    pub fn set_text<S: Into<Cow<'static, str>>>(&self, text: S) -> windows::Result<()> {
+        root_panel_with(|panel| self.set_text_at(panel, text))
+    }
 }
-
 
 impl Handle for TextPanelHandle {
     fn id(&self) -> usize {

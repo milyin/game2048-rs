@@ -13,3 +13,4 @@ panelgui = { path = "panelgui" }
 float-ord = "0.3.1"
 lazy_static = "1.4.0"
 futures = "0.3.13"
+async-std = "1.9.0"

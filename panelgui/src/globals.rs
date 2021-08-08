@@ -14,6 +14,7 @@ use futures::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 use std::{
     any::Any,
     cell::RefCell,
@@ -62,7 +63,7 @@ impl Globals {
         let canvas_device = CanvasDevice::GetSharedDevice()?;
         let composition_graphics_device =
             CanvasComposition::CreateCompositionGraphicsDevice(&compositor, &canvas_device)?;
-        let next_id = Arc::new(0.into());
+        let next_id = Arc::new(1.into());
         let event_loop = EventLoop::<PanelEvent>::with_user_event();
         let event_loop_proxy = event_loop.create_proxy();
         let window = WindowBuilder::new()
@@ -293,7 +294,11 @@ pub fn run(panel: impl Panel + 'static) -> ! {
         // just to allow '?' usage
         let mut run = || -> windows::Result<()> {
             local_pool.run_until_stalled();
-            *control_flow = ControlFlow::Wait;
+            *control_flow = ControlFlow::WaitUntil(
+                Instant::now()
+                    .checked_add(Duration::from_millis(10))
+                    .unwrap(),
+            );
             root_panel_with(|root_panel| match &mut evt {
                 Event::WindowEvent { event, window_id } => match event {
                     WindowEvent::Resized(size) => {
