@@ -9,17 +9,13 @@ use bindings::Windows::{
 use winit::event::VirtualKeyCode;
 
 use crate::{
-    background_panel::BackgroundParamsBuilder,
-    button_panel::{ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder},
-    control::ControlManager,
-    globals::{compositor, get_next_id, send_panel_event, winrt_error},
-    panel::{Handle, Panel, PanelEvent, PanelHandle},
-    ribbon_panel::RibbonOrientation,
-    ribbon_panel::RibbonPanel,
-    ribbon_panel::RibbonParamsBuilder,
-    text_panel::TextParamsBuilder,
+    compositor, expect_panel_event, get_next_id, root_panel_with, send_panel_event, winrt_error,
+    BackgroundParamsBuilder, ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder,
+    ControlManager, Handle, Panel, PanelEvent, PanelHandle, RibbonCellParamsBuilder,
+    RibbonOrientation, RibbonPanel, RibbonParamsBuilder, TextParamsBuilder,
 };
 
+#[derive(Copy, Clone)]
 pub struct MessageBoxPanelHandle(usize);
 
 impl Handle for MessageBoxPanelHandle {
@@ -56,7 +52,7 @@ pub struct MessageBoxParams {
 impl MessageBoxParamsBuilder {
     pub fn create(&self) -> windows::Result<MessageBoxPanel> {
         match self.build() {
-            Ok(settings) => Ok(MessageBoxPanel::new(settings)?),
+            Ok(params) => Ok(MessageBoxPanel::new(params)?),
             Err(e) => Err(winrt_error(e)()),
         }
     }
@@ -219,4 +215,28 @@ impl Panel for MessageBoxPanel {
         }
         Ok(())
     }
+}
+
+pub async fn show_message_box(
+    message: &'static str,
+    buttons: BitFlags<MessageBoxButton>,
+) -> windows::Result<MessageBoxButton> {
+    dbg!("Foo");
+    let message_box = MessageBoxParamsBuilder::default()
+        .message(message)
+        .button_flags(buttons)
+        .create()?;
+    let message_box_handle = message_box.handle();
+    let cell = RibbonCellParamsBuilder::default()
+        .panel(message_box)
+        .content_ratio(Vector2 { X: 0.9, Y: 0.4 })
+        .create()?;
+    root_panel_with(|panel| panel.push_cell(cell))?;
+    let result = expect_panel_event(message_box_handle).await;
+    root_panel_with(|panel| {
+        let cell = panel.pop_cell()?;
+        assert!(cell.panel().id() == message_box_handle.id());
+        Ok(())
+    })?;
+    Ok(result)
 }

@@ -7,7 +7,7 @@ use std::{any::Any, time::Duration};
 
 use game_field_panel::{GameFieldHandle, GameFieldPanel, GameFieldPanelEvent};
 use panelgui::{
-    compositor, get_next_id, init_window, run, spawn, spawner, winrt_error,
+    compositor, get_next_id, init_window, run, show_message_box, spawn, spawner, winrt_error,
     BackgroundParamsBuilder, ButtonPanelEvent, ButtonPanelHandle, ButtonParamsBuilder, Control,
     ControlManager, EmptyPanel, Handle, MessageBoxButton, MessageBoxPanelHandle,
     MessageBoxParamsBuilder, Panel, PanelEvent, PanelHandle, RibbonCellParamsBuilder,
@@ -80,11 +80,7 @@ impl MainPanel {
         let horizontal_padding_panel = RibbonParamsBuilder::default()
             .orientation(RibbonOrientation::Horizontal)
             .add_panel(EmptyPanel::new()?)?
-            .add_cell(
-                RibbonCellParamsBuilder::default()
-                    .panel(vertical_padding_panel)
-                    .create()?,
-            )
+            .add_panel(vertical_padding_panel)?
             .add_panel(EmptyPanel::new()?)?
             .create()?;
 
@@ -128,6 +124,11 @@ impl MainPanel {
             loop {
                 score_handle.set_text(counter.to_string())?;
                 counter += 1;
+                if counter % 5 == 0 {
+                    let _ =
+                        show_message_box("Foo?", MessageBoxButton::Ok | MessageBoxButton::Cancel)
+                            .await?;
+                }
                 async_std::task::sleep(Duration::from_secs(1)).await;
             }
         })
