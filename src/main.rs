@@ -273,8 +273,8 @@ impl Panel for MainPanel {
         } else if self.reset_button_handle.extract_event(panel_event)
             == Some(ButtonPanelEvent::Pressed)
         {
-            self.show_message_box_reset()?;
-        //self.open_message_box_reset()?;
+            // self.show_message_box_reset()?;
+            self.open_message_box_reset()?;
         } else if let Some(h) = self.message_box_reset_handle.as_ref() {
             if let Some(cmd) = h.extract_event(panel_event) {
                 self.close_message_box_reset()?;
